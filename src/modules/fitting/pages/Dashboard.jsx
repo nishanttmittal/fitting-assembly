@@ -7,7 +7,7 @@
  */
 import { useMemo, useState } from 'react'
 import { Card, FieldLabel } from '../../../core/ui'
-import { todayStr, fmtDate, fmtNum } from '../../../core/utils/format'
+import { todayStr, fmtDate, fmtNum, fmtDec } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
 import { computeStock, canBuild, shortages, incomingSummary } from '../logic/stock'
 import { SourceBadge } from './Setup'
@@ -144,11 +144,14 @@ export default function Dashboard() {
             {stockList.map(s => (
               <div key={s.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
                 <div>
-                  <div className="font-semibold text-slate-700 flex items-center gap-1.5">{s.name} <SourceBadge source={s.source} /></div>
+                  <div className="font-semibold text-slate-700 flex items-center gap-1.5">{s.name} <SourceBadge source={s.source} />{s.measureBy === 'weight' && <span className="text-[10px] text-emerald-600">⚖</span>}</div>
                   <div className="text-xs text-slate-400">in {fmtNum(s.received)} · used {fmtNum(s.used)}</div>
                 </div>
-                <span className={`font-mono font-bold ${s.negative ? 'text-red-600' : s.low ? 'text-amber-600' : 'text-slate-700'}`}>
+                <span className={`font-mono font-bold text-right ${s.negative ? 'text-red-600' : s.low ? 'text-amber-600' : 'text-slate-700'}`}>
                   {fmtNum(s.stock)} {s.unit}
+                  {s.measureBy === 'weight' && s.avgWeight > 0 && (
+                    <div className="text-[11px] font-semibold text-slate-400">≈ {fmtDec(s.stock * s.avgWeight)} {s.weightUnit}</div>
+                  )}
                 </span>
               </div>
             ))}

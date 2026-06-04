@@ -31,6 +31,12 @@ export const componentSchema = [
   field({ name: 'name',      label: 'Component', type: 'text',   default: '', required: true }),
   field({ name: 'unit',      label: 'Unit',      type: 'text',   default: 'pcs' }),
   field({ name: 'lowAt',     label: 'Low stock alert at', type: 'number', default: 0 }),
+  // Measurement: 'number' = counted in pieces; 'weight' = entered by weight and
+  // converted to pieces using avgWeight. Stock is ALWAYS kept in pieces.
+  field({ name: 'measureBy',  label: 'Measured by',          type: 'select', default: 'number',
+          options: [{ value: 'number', label: 'Number (pieces)' }, { value: 'weight', label: 'Weight' }] }),
+  field({ name: 'avgWeight',  label: 'Avg weight per piece', type: 'number', default: 0 }),
+  field({ name: 'weightUnit', label: 'Weight unit',          type: 'text',   default: 'kg' }),
   field({ name: 'source',    label: 'Source',    type: 'select', default: 'purchased',
           options: [
             { value: 'purchased',    label: 'Purchased (outside)' },
@@ -61,6 +67,9 @@ export const receiptSchema = [
   field({ name: 'componentId',   label: 'Component', type: 'select', default: '', required: true }),
   field({ name: 'componentName', label: 'Component', type: 'text',   default: '' }),
   field({ name: 'qty',           label: 'Quantity',  type: 'number', default: 0, required: true }),
+  // For by-weight receipts: the weight actually entered/weighed (qty stays the
+  // derived piece count). Kept for the record and weight cross-checks.
+  field({ name: 'weight',        label: 'Weight',    type: 'number', default: 0 }),
   field({ name: 'source',        label: 'Source',    type: 'select', default: 'purchased',
           options: [
             { value: 'purchased',    label: 'Purchased (outside)' },

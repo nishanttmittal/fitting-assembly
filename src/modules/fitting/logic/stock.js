@@ -13,6 +13,19 @@ const num = (v) => Number(v) || 0
 /** Normalize a name for matching: lowercase, collapse whitespace. */
 const normName = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
 
+// ── weight ↔ pieces conversions (for materials measured by weight) ──────────
+
+/** Pieces implied by a weight, rounded to whole pieces (0 if no avg weight). */
+export function piecesFromWeight(avgWeight, weight) {
+  const a = num(avgWeight)
+  return a > 0 ? Math.round(num(weight) / a) : 0
+}
+
+/** Expected total weight for a piece count (for the "recheck weight" feature). */
+export function weightFromPieces(avgWeight, pieces) {
+  return num(avgWeight) * num(pieces)
+}
+
 /**
  * Build a stock map keyed by componentId.
  *
@@ -29,7 +42,12 @@ export function computeStock(components, receipts, production) {
   const byId = {}
   const byName = {}
   for (const c of components) {
-    const entry = { id: c.id, name: c.name, unit: c.unit || 'pcs', lowAt: num(c.lowAt), source: c.source || 'purchased', received: 0, used: 0, stock: 0, negative: false, low: false }
+    const entry = {
+      id: c.id, name: c.name, unit: c.unit || 'pcs', lowAt: num(c.lowAt),
+      source: c.source || 'purchased',
+      measureBy: c.measureBy || 'number', avgWeight: num(c.avgWeight), weightUnit: c.weightUnit || 'kg',
+      received: 0, used: 0, stock: 0, negative: false, low: false,
+    }
     map[c.id] = entry
     byId[c.id] = entry
     if (c.name) byName[normName(c.name)] = entry
@@ -43,7 +61,7 @@ export function computeStock(components, receipts, production) {
     if (nn && byName[nn]) return byName[nn]
     const key = id || (nn ? `name:${nn}` : 'unknown')
     if (!map[key]) {
-      map[key] = { id: key, name: name || 'Unknown', unit: 'pcs', lowAt: 0, source: 'purchased', received: 0, used: 0, stock: 0, negative: false, low: false }
+      map[key] = { id: key, name: name || 'Unknown', unit: 'pcs', lowAt: 0, source: 'purchased', measureBy: 'number', avgWeight: 0, weightUnit: 'kg', received: 0, used: 0, stock: 0, negative: false, low: false }
       if (nn) byName[nn] = map[key]
     }
     return map[key]

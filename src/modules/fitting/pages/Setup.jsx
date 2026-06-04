@@ -10,9 +10,9 @@ import { useMemo, useState } from 'react'
 import {
   Button, Card, FieldLabel, TextInput, NumberInput, Select, useToast, Toast,
 } from '../../../core/ui'
-import { todayStr, fmtNum } from '../../../core/utils/format'
+import { todayStr, fmtNum, fmtDec } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
-import { computeStock } from '../logic/stock'
+import { computeStock, piecesFromWeight } from '../logic/stock'
 
 /** Small coloured tag showing where a component comes from. */
 export function SourceBadge({ source }) {
@@ -39,6 +39,9 @@ function ComponentsTab() {
   const [lowAt, setLowAt] = useState('')
   const [source, setSource] = useState('purchased')
   const [sourceApp, setSourceApp] = useState('')
+  const [measureBy, setMeasureBy] = useState('number')
+  const [avgWeight, setAvgWeight] = useState('')
+  const [weightUnit, setWeightUnit] = useState('kg')
   const [editId, setEditId] = useState(null)
 
   const SOURCE_OPTS = [
@@ -46,19 +49,35 @@ function ComponentsTab() {
     { value: 'manufactured', label: 'Manufactured (in-house)' },
     { value: 'both', label: 'Both' },
   ]
+  const MEASURE_OPTS = [
+    { value: 'number', label: 'Number (pieces)' },
+    { value: 'weight', label: 'Weight' },
+  ]
+
+  // For weight materials the "opening" field is a weight → convert to pieces.
+  const byWeight = measureBy === 'weight'
+  const openingPieces = byWeight ? piecesFromWeight(avgWeight, opening) : (Number(opening) || 0)
 
   const add = () => {
     const nm = name.trim()
     if (!nm) return show('Enter a component name', 2000)
     if (components.list.some(c => c.name.toLowerCase() === nm.toLowerCase())) return show('Already exists', 2000)
-    const row = components.insert({ name: nm, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim() })
-    const open = Number(opening) || 0
-    if (open > 0) {
-      receipts.insert({ date: todayStr(), componentId: row.id, componentName: row.name, qty: open, source: source === 'manufactured' ? 'manufactured' : 'purchased', sourceApp: 'manual', note: 'Opening stock' })
+    if (byWeight && !(Number(avgWeight) > 0)) return show('Enter avg weight per piece', 2500)
+    const row = components.insert({
+      name: nm, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim(),
+      measureBy, avgWeight: byWeight ? Number(avgWeight) || 0 : 0, weightUnit: weightUnit.trim() || 'kg',
+    })
+    if (openingPieces > 0) {
+      receipts.insert({
+        date: todayStr(), componentId: row.id, componentName: row.name,
+        qty: openingPieces, weight: byWeight ? Number(opening) || 0 : 0,
+        source: source === 'manufactured' ? 'manufactured' : 'purchased', sourceApp: 'manual', note: 'Opening stock',
+      })
     }
-    log('ADD_COMPONENT', `${nm}${open ? ` (opening ${open})` : ''}`, 'admin')
+    log('ADD_COMPONENT', `${nm} [${measureBy}]${openingPieces ? ` (opening ${openingPieces}pc)` : ''}`, 'admin')
     show('Component added ✓')
     setName(''); setUnit('pcs'); setOpening(''); setLowAt(''); setSource('purchased'); setSourceApp('')
+    setMeasureBy('number'); setAvgWeight(''); setWeightUnit('kg')
   }
 
   const saveEdit = (c, patch) => {
@@ -81,11 +100,27 @@ function ComponentsTab() {
       <Card className="p-5 space-y-3">
         <FieldLabel>Add Component</FieldLabel>
         <TextInput placeholder="Component name (e.g. M8 Bolt)" value={name} onChange={e => setName(e.target.value)} />
+        <div>
+          <FieldLabel>Measured by</FieldLabel>
+          <Select className="mt-1" value={measureBy} onChange={e => setMeasureBy(e.target.value)} options={MEASURE_OPTS} />
+        </div>
+        {byWeight && (
+          <div className="grid grid-cols-2 gap-2 bg-amber-50 rounded-xl p-3">
+            <div><FieldLabel>Avg weight / piece</FieldLabel><NumberInput className="mt-1" placeholder="e.g. 0.25" value={avgWeight} onChange={e => setAvgWeight(e.target.value)} /></div>
+            <div><FieldLabel>Weight unit</FieldLabel><TextInput className="mt-1" placeholder="kg" value={weightUnit} onChange={e => setWeightUnit(e.target.value)} /></div>
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-2">
           <div><FieldLabel>Unit</FieldLabel><TextInput className="mt-1" placeholder="pcs" value={unit} onChange={e => setUnit(e.target.value)} /></div>
-          <div><FieldLabel>Opening stock</FieldLabel><NumberInput className="mt-1" placeholder="0" value={opening} onChange={e => setOpening(e.target.value)} /></div>
-          <div><FieldLabel>Low at</FieldLabel><NumberInput className="mt-1" placeholder="0" value={lowAt} onChange={e => setLowAt(e.target.value)} /></div>
+          <div>
+            <FieldLabel>{byWeight ? `Opening (${weightUnit || 'kg'})` : 'Opening stock'}</FieldLabel>
+            <NumberInput className="mt-1" placeholder="0" value={opening} onChange={e => setOpening(e.target.value)} />
+          </div>
+          <div><FieldLabel>Low at (pcs)</FieldLabel><NumberInput className="mt-1" placeholder="0" value={lowAt} onChange={e => setLowAt(e.target.value)} /></div>
         </div>
+        {byWeight && Number(opening) > 0 && (
+          <p className="text-xs text-amber-700 -mt-1">≈ {fmtNum(openingPieces)} pcs opening (from {opening} {weightUnit || 'kg'})</p>
+        )}
         <div>
           <FieldLabel>Source</FieldLabel>
           <Select className="mt-1" value={source} onChange={e => setSource(e.target.value)} options={SOURCE_OPTS} />
@@ -115,8 +150,13 @@ function ComponentsTab() {
                       <div className="font-semibold text-slate-700 flex items-center gap-1.5">
                         {c.name} <span className="text-xs text-slate-400">({c.unit})</span>
                         <SourceBadge source={c.source} />
+                        {c.measureBy === 'weight' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">⚖ {fmtDec(c.avgWeight)}{c.weightUnit || 'kg'}/pc</span>}
                       </div>
-                      <div className="text-xs text-slate-400">stock {fmtNum(stockMap[c.id]?.stock ?? 0)} · low at {fmtNum(c.lowAt)}{c.sourceApp ? ` · fed by ${c.sourceApp}` : ''}</div>
+                      <div className="text-xs text-slate-400">
+                        stock {fmtNum(stockMap[c.id]?.stock ?? 0)} pcs
+                        {c.measureBy === 'weight' && c.avgWeight > 0 ? ` (≈ ${fmtDec((stockMap[c.id]?.stock ?? 0) * c.avgWeight)} ${c.weightUnit || 'kg'})` : ''}
+                        {' · low at '}{fmtNum(c.lowAt)}{c.sourceApp ? ` · fed by ${c.sourceApp}` : ''}
+                      </div>
                     </div>
                     <div className="flex gap-1.5">
                       <button onClick={() => setEditId(c.id)} className="text-blue-600 text-sm font-bold px-2">Edit</button>
@@ -139,25 +179,42 @@ function EditComponentRow({ c, onCancel, onSave }) {
   const [lowAt, setLowAt] = useState(String(c.lowAt ?? 0))
   const [source, setSource] = useState(c.source || 'purchased')
   const [sourceApp, setSourceApp] = useState(c.sourceApp || '')
+  const [measureBy, setMeasureBy] = useState(c.measureBy || 'number')
+  const [avgWeight, setAvgWeight] = useState(String(c.avgWeight ?? 0))
+  const [weightUnit, setWeightUnit] = useState(c.weightUnit || 'kg')
   const SOURCE_OPTS = [
     { value: 'purchased', label: 'Purchased (outside)' },
     { value: 'manufactured', label: 'Manufactured (in-house)' },
     { value: 'both', label: 'Both' },
+  ]
+  const MEASURE_OPTS = [
+    { value: 'number', label: 'Number (pieces)' },
+    { value: 'weight', label: 'Weight' },
   ]
   return (
     <div className="space-y-2">
       <TextInput value={name} onChange={e => setName(e.target.value)} />
       <div className="grid grid-cols-2 gap-2">
         <div><FieldLabel>Unit</FieldLabel><TextInput className="mt-1" value={unit} onChange={e => setUnit(e.target.value)} /></div>
-        <div><FieldLabel>Low at</FieldLabel><NumberInput className="mt-1" value={lowAt} onChange={e => setLowAt(e.target.value)} /></div>
+        <div><FieldLabel>Low at (pcs)</FieldLabel><NumberInput className="mt-1" value={lowAt} onChange={e => setLowAt(e.target.value)} /></div>
       </div>
+      <div><FieldLabel>Measured by</FieldLabel><Select className="mt-1" value={measureBy} onChange={e => setMeasureBy(e.target.value)} options={MEASURE_OPTS} /></div>
+      {measureBy === 'weight' && (
+        <div className="grid grid-cols-2 gap-2 bg-amber-50 rounded-xl p-2">
+          <div><FieldLabel>Avg wt / piece</FieldLabel><NumberInput className="mt-1" value={avgWeight} onChange={e => setAvgWeight(e.target.value)} /></div>
+          <div><FieldLabel>Weight unit</FieldLabel><TextInput className="mt-1" value={weightUnit} onChange={e => setWeightUnit(e.target.value)} /></div>
+        </div>
+      )}
       <div><FieldLabel>Source</FieldLabel><Select className="mt-1" value={source} onChange={e => setSource(e.target.value)} options={SOURCE_OPTS} /></div>
       {source !== 'purchased' && (
         <div><FieldLabel>Fed by app</FieldLabel><TextInput className="mt-1" placeholder="e.g. coil-slitter" value={sourceApp} onChange={e => setSourceApp(e.target.value)} /></div>
       )}
       <div className="flex gap-2">
         <Button size="sm" variant="ghost" className="flex-1" onClick={onCancel}>Cancel</Button>
-        <Button size="sm" variant="success" className="flex-1" onClick={() => onSave(c, { name: name.trim() || c.name, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim() })}>Save</Button>
+        <Button size="sm" variant="success" className="flex-1" onClick={() => onSave(c, {
+          name: name.trim() || c.name, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim(),
+          measureBy, avgWeight: measureBy === 'weight' ? Number(avgWeight) || 0 : 0, weightUnit: weightUnit.trim() || 'kg',
+        })}>Save</Button>
       </div>
     </div>
   )

@@ -23,3 +23,7 @@ export const fmtDate = (iso) => {
 
 /** Indian-format rupee/number, rounded to whole. */
 export const fmtNum = (n) => Math.round(Number(n) || 0).toLocaleString('en-IN')
+
+/** Decimal-friendly number (for weights like 0.5 kg) — up to 3 dp, no trailing zeros. */
+export const fmtDec = (n) =>
+  (Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 })

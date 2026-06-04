@@ -3,13 +3,13 @@
  * view the audit log, and reset. Receiving stock simply records a receipt, which
  * raises the computed stock for that component.
  */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button, Card, FieldLabel, Select, NumberInput, DateInput, TextInput, useToast, Toast,
 } from '../../../core/ui'
-import { todayStr, fmtDate, fmtNum } from '../../../core/utils/format'
+import { todayStr, fmtDate, fmtNum, fmtDec } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
-import { computeStock } from '../logic/stock'
+import { computeStock, piecesFromWeight, weightFromPieces } from '../logic/stock'
 
 function ReceiveStock() {
   const { components, receipts, production, log } = useFitting()
@@ -20,20 +20,40 @@ function ReceiveStock() {
   )
   const sorted = [...components.list].sort((a, b) => a.name.localeCompare(b.name))
   const [componentId, setComponentId] = useState(sorted[0]?.id || '')
-  const [qty, setQty] = useState('')
+  const [qty, setQty] = useState('')       // pieces (when entering by pieces)
+  const [weight, setWeight] = useState('') // weight (when entering by weight)
+  const [inputMode, setInputMode] = useState(() => sorted[0]?.measureBy === 'weight' ? 'weight' : 'pieces') // 'pieces' | 'weight'
   const [date, setDate] = useState(todayStr())
   const [source, setSource] = useState('purchased')
   const [note, setNote] = useState('')
 
+  const comp = components.list.find(c => c.id === componentId)
+  const byWeight = comp?.measureBy === 'weight'
+  const avg = Number(comp?.avgWeight) || 0
+  const wUnit = comp?.weightUnit || 'kg'
+
+  // Default the input mode to the selected component's natural mode. Fires on
+  // mount and whenever the component (or its by-weight flag) changes — but NOT
+  // on a manual toggle, so the user can still switch weight↔pieces freely.
+  useEffect(() => { setInputMode(byWeight ? 'weight' : 'pieces') }, [componentId, byWeight])
+
+  const pickComponent = (id) => { setComponentId(id); setQty(''); setWeight('') }
+
+  // Derived figures for preview + save.
+  const enteringWeight = byWeight && inputMode === 'weight'
+  const pieces = enteringWeight ? piecesFromWeight(avg, weight) : (Number(qty) || 0)
+  const expectedWeight = byWeight ? weightFromPieces(avg, pieces) : 0
+
   const add = () => {
-    const c = components.list.find(c => c.id === componentId)
-    if (!c) return show('Pick a component', 2000)
-    const n = Number(qty) || 0
-    if (n <= 0) return show('Enter a quantity', 2000)
-    receipts.insert({ date, componentId: c.id, componentName: c.name, qty: n, source, sourceApp: 'manual', note: note.trim() })
-    log('RECEIVE', `${c.name} +${n} (${source}) on ${fmtDate(date)}`, 'admin')
-    show(`Added ${c.name} +${fmtNum(n)} ✓`)
-    setQty(''); setNote('')
+    if (!comp) return show('Pick a component', 2000)
+    if (enteringWeight && !(Number(weight) > 0)) return show('Enter a weight', 2000)
+    if (!enteringWeight && pieces <= 0) return show('Enter a quantity', 2000)
+    if (pieces <= 0) return show('Quantity comes to 0 — check avg weight', 2500)
+    const weightVal = byWeight ? (enteringWeight ? Number(weight) || 0 : expectedWeight) : 0
+    receipts.insert({ date, componentId: comp.id, componentName: comp.name, qty: pieces, weight: weightVal, source, sourceApp: 'manual', note: note.trim() })
+    log('RECEIVE', `${comp.name} +${pieces}pc${byWeight ? ` (${fmtNum(weightVal)}${wUnit})` : ''} (${source}) on ${fmtDate(date)}`, 'admin')
+    show(`Added ${comp.name} +${fmtNum(pieces)} pcs ✓`)
+    setQty(''); setWeight(''); setNote('')
   }
 
   const recent = [...receipts.list].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 8)
@@ -46,8 +66,8 @@ function ReceiveStock() {
         <p className="text-sm text-slate-400">Add components first in Components &amp; Recipes.</p>
       ) : (
         <>
-          <Select value={componentId} onChange={e => setComponentId(e.target.value)}
-            options={sorted.map(c => ({ value: c.id, label: `${c.name} (stock ${fmtNum(stockMap[c.id]?.stock ?? 0)})` }))} />
+          <Select value={componentId} onChange={e => pickComponent(e.target.value)}
+            options={sorted.map(c => ({ value: c.id, label: `${c.name} (stock ${fmtNum(stockMap[c.id]?.stock ?? 0)})${c.measureBy === 'weight' ? ' ⚖' : ''}` }))} />
           {/* Source toggle */}
           <div className="flex gap-2 bg-slate-100 rounded-2xl p-1">
             {[['purchased', '🛒 Purchased'], ['manufactured', '🏭 Manufactured']].map(([v, label]) => (
@@ -57,10 +77,39 @@ function ReceiveStock() {
               </button>
             ))}
           </div>
+
+          {/* For weight materials: choose to enter by weight or by pieces. */}
+          {byWeight && (
+            <div className="flex gap-2 bg-emerald-50 rounded-2xl p-1">
+              {[['weight', `⚖ By weight (${wUnit})`], ['pieces', '🔢 By pieces']].map(([v, label]) => (
+                <button key={v} onClick={() => { setInputMode(v); setQty(''); setWeight('') }}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors ${inputMode === v ? 'bg-white shadow text-emerald-700' : 'text-emerald-600/70'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
-            <div><FieldLabel>Quantity</FieldLabel><NumberInput className="mt-1" placeholder="0" value={qty} onChange={e => setQty(e.target.value)} /></div>
+            {enteringWeight ? (
+              <div><FieldLabel>Weight ({wUnit})</FieldLabel><NumberInput className="mt-1" placeholder="0" value={weight} onChange={e => setWeight(e.target.value)} /></div>
+            ) : (
+              <div><FieldLabel>Quantity (pcs)</FieldLabel><NumberInput className="mt-1" placeholder="0" value={qty} onChange={e => setQty(e.target.value)} /></div>
+            )}
             <div><FieldLabel>Date</FieldLabel><DateInput className="mt-1" value={date} onChange={e => setDate(e.target.value)} /></div>
           </div>
+
+          {/* Conversion / recheck helper for weight materials */}
+          {byWeight && enteringWeight && Number(weight) > 0 && (
+            <p className="text-xs text-emerald-700 -mt-1">
+              ≈ <b>{fmtNum(pieces)} pcs</b> (from {weight} {wUnit} ÷ {fmtDec(avg)} {wUnit}/pc)
+            </p>
+          )}
+          {byWeight && !enteringWeight && pieces > 0 && (
+            <p className="text-xs text-amber-700 -mt-1">
+              🔎 Recheck: {fmtNum(pieces)} pcs should weigh ≈ <b>{fmtDec(expectedWeight)} {wUnit}</b> ({fmtNum(pieces)} × {fmtDec(avg)})
+            </p>
+          )}
           <TextInput placeholder="Note (supplier, bill no…) optional" value={note} onChange={e => setNote(e.target.value)} />
           <Button variant="success" className="w-full" onClick={add}>Add to Stock</Button>
 
@@ -77,7 +126,7 @@ function ReceiveStock() {
                       </span>
                       {r.sourceApp && r.sourceApp !== 'manual' && <span className="text-[10px] text-slate-400">via {r.sourceApp}</span>}
                     </span>
-                    <span className="text-slate-500">+{fmtNum(r.qty)} · {fmtDate(r.date)}</span>
+                    <span className="text-slate-500">+{fmtNum(r.qty)} pcs{r.weight ? ` · ${fmtDec(r.weight)}kg` : ''} · {fmtDate(r.date)}</span>
                   </div>
                 ))}
               </div>
