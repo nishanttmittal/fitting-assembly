@@ -1,0 +1,41 @@
+rules_version = '2';
+// ────────────────────────────────────────────────────────────────────────────
+// Firestore security rules for the "unico-operations" project.
+// Paste these in: Firebase Console → Firestore Database → Rules → Publish.
+//
+// This single project hosts MULTIPLE apps, each under its own namespace:
+//   • apps/platingjobwork/...   (Plating Job Work)
+//   • apps/fittingassembly/...  (Fitting Assembly  ← this app)
+//
+// Model: reading & writing day-to-day data requires being SIGNED IN (anonymous
+// or Google) — keeps each app's data private to your team. Tighten later by
+// pinning writes to specific Google account UIDs.
+//
+// NOTE: keep BOTH app blocks below so publishing these rules does not disable
+// the other app. Add a new block when you add a new app.
+// ────────────────────────────────────────────────────────────────────────────
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Plating Job Work
+    match /apps/platingjobwork/{collection}/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /apps/platingjobwork {
+      allow read, write: if request.auth != null;
+    }
+
+    // Fitting Assembly
+    match /apps/fittingassembly/{collection}/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /apps/fittingassembly {
+      allow read, write: if request.auth != null;
+    }
+
+    // Everything else denied by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
