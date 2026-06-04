@@ -5,11 +5,11 @@
  *
  * Data layout in Firestore (under one app namespace so the project can host
  * other apps too — this project also hosts "platingjobwork"):
- *   apps/fittingassembly/components/{id}    ← one doc per component (master)
- *   apps/fittingassembly/products/{id}      ← one doc per final product (+ recipe)
- *   apps/fittingassembly/receipts/{id}      ← one doc per component stock receipt
- *   apps/fittingassembly/production/{id}    ← one doc per production entry
- *   apps/fittingassembly/logs/{id}          ← one doc per audit log line
+ *   apps/fitting/components/{id}    ← one doc per component (master)
+ *   apps/fitting/products/{id}      ← one doc per final product (+ recipe)
+ *   apps/fitting/receipts/{id}      ← one doc per component stock receipt
+ *   apps/fitting/production/{id}    ← one doc per production entry
+ *   apps/fitting/logs/{id}          ← one doc per audit log line
  */
 import { initializeApp, getApp } from 'firebase/app'
 import { initializeFirestore, collection, doc } from 'firebase/firestore'
@@ -19,7 +19,7 @@ import {
 } from 'firebase/auth'
 import { firebaseConfig, isFirebaseConfigured } from './firebaseConfig'
 
-const APP_NS = 'fittingassembly'
+const APP_NS = 'fitting'
 
 let app = null
 let db = null

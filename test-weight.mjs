@@ -5,7 +5,7 @@
  */
 import { chromium, devices } from 'playwright'
 
-const BASE = 'http://localhost:4173/fitting-assembly/?local=1'
+const BASE = 'http://localhost:4173/fitting/?local=1'
 const PWD = '6133923_N'
 function assert(c, m) { if (!c) { console.error('  ✗ FAIL:', m); process.exitCode = 1; throw new Error(m) } console.log('  ✓', m) }
 

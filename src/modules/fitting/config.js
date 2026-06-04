@@ -2,7 +2,7 @@
  * Fitting Assembly module — configuration & constants.
  */
 
-export const APP_TITLE = 'Fitting Assembly'
+export const APP_TITLE = 'Fitting'
 
 /** Admin password guarding setup (recipes/components) & destructive actions.
  *  Permanent fallback so admin access can never be locked out. */

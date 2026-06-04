@@ -6,7 +6,7 @@
  */
 import { chromium, devices } from 'playwright'
 
-const BASE = 'http://localhost:4173/fitting-assembly/?local=1'
+const BASE = 'http://localhost:4173/fitting/?local=1'
 const iPhone = devices['iPhone 13']
 const PWD = '6133923_N'
 

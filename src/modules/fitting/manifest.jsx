@@ -40,7 +40,7 @@ function HomeStats() {
 
 export const fittingModule = {
   id: 'fitting',
-  title: 'Fitting Assembly',
+  title: 'Fitting',
   icon: '🛠️',
   Provider: FittingProvider,
   HomeStats,

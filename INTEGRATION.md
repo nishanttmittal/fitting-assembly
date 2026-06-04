@@ -1,7 +1,7 @@
-# Fitting Assembly — Auto-Feed Integration
+# Fitting — Auto-Feed Integration
 
 How another app (now or in the future) automatically adds **component stock**
-into Fitting Assembly. This is the "manufactured in-house" supply channel: when
+into Fitting. This is the "manufactured in-house" supply channel: when
 one of your other apps produces a part that becomes a component here, it pushes
 the quantity into this app and the stock updates live — no manual entry.
 
@@ -15,14 +15,14 @@ no servers and no extra accounts.
 A feeding app writes ONE document into this Firestore collection:
 
 ```
-apps/fittingassembly/receipts/{id}
+apps/fitting/receipts/{id}
 ```
 
 Document fields:
 
 | field           | type   | required | meaning                                                |
 |-----------------|--------|----------|--------------------------------------------------------|
-| `componentName` | string | ✅       | Component name **exactly as named in Fitting Assembly** (matched case-insensitively). |
+| `componentName` | string | ✅       | Component name **exactly as named in Fitting** (matched case-insensitively). |
 | `qty`           | number | ✅       | Quantity delivered into stock.                          |
 | `source`        | string | ✅       | Always `"manufactured"` for an in-house feed.           |
 | `sourceApp`     | string | ✅       | The feeding app's id, e.g. `"coil-slitter"`.            |
@@ -32,7 +32,7 @@ Document fields:
 | `note`          | string | optional | Free text.                                              |
 | `createdAt`     | string | ✅       | ISO timestamp.                                           |
 
-**Matching:** Fitting Assembly links the receipt to a component by
+**Matching:** Fitting links the receipt to a component by
 `componentName` (case-insensitive). If no component with that name exists yet,
 the stock still shows up under that name on the Dashboard so the admin notices
 and can create/rename it.
@@ -54,7 +54,7 @@ await signInAnonymously(getAuth())
 ```
 
 Firestore security rules already allow signed-in writes under
-`apps/fittingassembly/**` (see `firestore.rules`).
+`apps/fitting/**` (see `firestore.rules`).
 
 ---
 
@@ -77,11 +77,11 @@ const app = initializeApp(firebaseConfig)
 const db = getFirestore(app)
 const safe = s => String(s ?? '').trim().replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 64) || 'x'
 
-/** Push manufactured-component stock into Fitting Assembly. */
+/** Push manufactured-component stock into Fitting. */
 export async function feedFittingAssembly({ componentName, qty, sourceApp, ref = '', date, note = '' }) {
   await signInAnonymously(getAuth())
   const id = `feed_${safe(sourceApp)}_${safe(ref || `${componentName}_${date || ''}`)}`
-  await setDoc(doc(db, 'apps', 'fittingassembly', 'receipts', id), {
+  await setDoc(doc(db, 'apps', 'fitting', 'receipts', id), {
     id,
     date: date || new Date().toISOString().slice(0, 10),
     componentName, qty: Number(qty) || 0,
@@ -104,7 +104,7 @@ await feedFittingAssembly({
 })
 ```
 
-That's it — the 500 appear in Fitting Assembly stock instantly, tagged
+That's it — the 500 appear in Fitting stock instantly, tagged
 **🏭 Manufactured · via coil-slitter**.
 
 ---
@@ -116,7 +116,7 @@ reusing this app's Firebase instance. `feed-example.mjs` is a runnable demo.
 
 ## Reverse direction (future)
 
-To let the **dashboard** or other apps READ Fitting Assembly data (production,
-stock), they listen to `apps/fittingassembly/production` and
-`apps/fittingassembly/receipts` and compute with the same rule:
+To let the **dashboard** or other apps READ Fitting data (production,
+stock), they listen to `apps/fitting/production` and
+`apps/fitting/receipts` and compute with the same rule:
 `stock = Σ receipts − Σ production.consumed`.
