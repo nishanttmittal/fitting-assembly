@@ -70,6 +70,11 @@ export const receiptSchema = [
   // For by-weight receipts: the weight actually entered/weighed (qty stays the
   // derived piece count). Kept for the record and weight cross-checks.
   field({ name: 'weight',        label: 'Weight',    type: 'number', default: 0 }),
+  // The average weight per piece used for THIS lot's conversion (may differ
+  // from the component's admin standard — avg weight varies lot to lot).
+  field({ name: 'avgWeightUsed', label: 'Lot avg wt', type: 'number', default: 0 }),
+  // True when this lot's avg weight deviated from the standard beyond tolerance.
+  field({ name: 'flagged',       label: 'Flagged',    type: 'toggle', default: false }),
   field({ name: 'source',        label: 'Source',    type: 'select', default: 'purchased',
           options: [
             { value: 'purchased',    label: 'Purchased (outside)' },

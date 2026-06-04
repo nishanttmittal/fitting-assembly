@@ -27,6 +27,16 @@ export function weightFromPieces(avgWeight, pieces) {
 }
 
 /**
+ * Percentage a lot's average weight deviates from the admin standard.
+ * @returns {number} absolute deviation %, or 0 when no standard to compare to.
+ */
+export function avgDeviationPct(standardAvg, lotAvg) {
+  const s = num(standardAvg), l = num(lotAvg)
+  if (s <= 0 || l <= 0) return 0
+  return Math.abs(l - s) / s * 100
+}
+
+/**
  * Build a stock map keyed by componentId.
  *
  * Movements (receipts / production.consumed) are resolved to a master component

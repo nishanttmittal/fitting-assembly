@@ -49,6 +49,13 @@ try {
   await page.waitForSelector('text=15')   // 30 × 0.5 = 15 kg
   assert(await page.locator('text=Recheck').first().isVisible(), 'pieces→weight recheck shown (30 pcs ≈ 15 kg)')
 
+  console.log('\n[3b] Lot avg deviation >1% raises a red flag')
+  await page.click('button:has-text("By weight")')
+  await page.fill('input[placeholder="0.5"]', '0.6')   // 20% above standard 0.5
+  await page.waitForSelector('text=off standard')
+  assert(await page.locator('text=/🚩|off standard/').first().isVisible(), 'Red flag shown when lot avg is 20% off')
+  await page.fill('input[placeholder="0.5"]', '0.5')   // back to standard
+
   console.log('\n[4] Save 50 kg back (weight mode) and check dashboard')
   await page.click('button:has-text("By weight")')
   await page.fill('input[placeholder="0"]', '50')

@@ -9,7 +9,8 @@ import {
 } from '../../../core/ui'
 import { todayStr, fmtDate, fmtNum, fmtDec } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
-import { computeStock, piecesFromWeight, weightFromPieces } from '../logic/stock'
+import { computeStock, piecesFromWeight, weightFromPieces, avgDeviationPct } from '../logic/stock'
+import { AVG_WEIGHT_TOLERANCE_PCT } from '../config'
 
 function ReceiveStock() {
   const { components, receipts, production, log } = useFitting()
@@ -22,6 +23,7 @@ function ReceiveStock() {
   const [componentId, setComponentId] = useState(sorted[0]?.id || '')
   const [qty, setQty] = useState('')       // pieces (when entering by pieces)
   const [weight, setWeight] = useState('') // weight (when entering by weight)
+  const [lotAvg, setLotAvg] = useState('') // THIS lot's avg weight per piece
   const [inputMode, setInputMode] = useState(() => sorted[0]?.measureBy === 'weight' ? 'weight' : 'pieces') // 'pieces' | 'weight'
   const [date, setDate] = useState(todayStr())
   const [source, setSource] = useState('purchased')
@@ -29,29 +31,41 @@ function ReceiveStock() {
 
   const comp = components.list.find(c => c.id === componentId)
   const byWeight = comp?.measureBy === 'weight'
-  const avg = Number(comp?.avgWeight) || 0
+  const stdAvg = Number(comp?.avgWeight) || 0 // admin-console standard
   const wUnit = comp?.weightUnit || 'kg'
 
-  // Default the input mode to the selected component's natural mode. Fires on
-  // mount and whenever the component (or its by-weight flag) changes — but NOT
-  // on a manual toggle, so the user can still switch weight↔pieces freely.
-  useEffect(() => { setInputMode(byWeight ? 'weight' : 'pieces') }, [componentId, byWeight])
+  // Default input mode + prefill this lot's avg weight from the standard,
+  // whenever the chosen component changes (avg weight varies lot to lot, so it
+  // is always editable per receipt). Manual mode toggles don't reset it.
+  useEffect(() => {
+    setInputMode(byWeight ? 'weight' : 'pieces')
+    setLotAvg(stdAvg > 0 ? String(stdAvg) : '')
+  }, [componentId, byWeight, stdAvg])
 
   const pickComponent = (id) => { setComponentId(id); setQty(''); setWeight('') }
 
-  // Derived figures for preview + save.
+  // Use THIS lot's avg weight for the conversion (fall back to the standard).
+  const avg = Number(lotAvg) > 0 ? Number(lotAvg) : stdAvg
   const enteringWeight = byWeight && inputMode === 'weight'
   const pieces = enteringWeight ? piecesFromWeight(avg, weight) : (Number(qty) || 0)
   const expectedWeight = byWeight ? weightFromPieces(avg, pieces) : 0
 
+  // Deviation of this lot's avg weight vs the standard → red flag past tolerance.
+  const deviation = byWeight ? avgDeviationPct(stdAvg, avg) : 0
+  const flagged = deviation > AVG_WEIGHT_TOLERANCE_PCT
+
   const add = () => {
     if (!comp) return show('Pick a component', 2000)
+    if (byWeight && !(avg > 0)) return show('Enter avg weight for this lot', 2500)
     if (enteringWeight && !(Number(weight) > 0)) return show('Enter a weight', 2000)
     if (!enteringWeight && pieces <= 0) return show('Enter a quantity', 2000)
     if (pieces <= 0) return show('Quantity comes to 0 — check avg weight', 2500)
     const weightVal = byWeight ? (enteringWeight ? Number(weight) || 0 : expectedWeight) : 0
-    receipts.insert({ date, componentId: comp.id, componentName: comp.name, qty: pieces, weight: weightVal, source, sourceApp: 'manual', note: note.trim() })
-    log('RECEIVE', `${comp.name} +${pieces}pc${byWeight ? ` (${fmtNum(weightVal)}${wUnit})` : ''} (${source}) on ${fmtDate(date)}`, 'admin')
+    receipts.insert({
+      date, componentId: comp.id, componentName: comp.name, qty: pieces, weight: weightVal,
+      avgWeightUsed: byWeight ? avg : 0, flagged, source, sourceApp: 'manual', note: note.trim(),
+    })
+    log('RECEIVE', `${comp.name} +${pieces}pc${byWeight ? ` (${fmtDec(weightVal)}${wUnit} @ ${fmtDec(avg)}/pc${flagged ? ` ⚠${deviation.toFixed(1)}%` : ''})` : ''} (${source})`, 'admin')
     show(`Added ${comp.name} +${fmtNum(pieces)} pcs ✓`)
     setQty(''); setWeight(''); setNote('')
   }
@@ -90,6 +104,23 @@ function ReceiveStock() {
             </div>
           )}
 
+          {/* Per-lot average weight (avg weight varies lot to lot) */}
+          {byWeight && (
+            <div>
+              <FieldLabel>Avg weight / piece — this lot ({wUnit})</FieldLabel>
+              <NumberInput className={`mt-1 ${flagged ? 'border-red-400 focus:ring-red-200 focus:border-red-500' : ''}`}
+                placeholder={stdAvg ? String(stdAvg) : 'e.g. 0.5'} value={lotAvg} onChange={e => setLotAvg(e.target.value)} />
+              <div className="mt-1 text-xs">
+                {stdAvg > 0 && <span className="text-slate-400">Standard: {fmtDec(stdAvg)} {wUnit}/pc. </span>}
+                {flagged
+                  ? <span className="text-red-600 font-bold">🚩 {deviation.toFixed(1)}% off standard — please re-verify (still calculated)</span>
+                  : (avg > 0 && stdAvg > 0 && deviation > 0)
+                    ? <span className="text-emerald-600 font-semibold">✓ within {AVG_WEIGHT_TOLERANCE_PCT}% ({deviation.toFixed(1)}% off)</span>
+                    : null}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             {enteringWeight ? (
               <div><FieldLabel>Weight ({wUnit})</FieldLabel><NumberInput className="mt-1" placeholder="0" value={weight} onChange={e => setWeight(e.target.value)} /></div>
@@ -120,6 +151,7 @@ function ReceiveStock() {
                 {recent.map(r => (
                   <div key={r.id} className="flex items-center justify-between text-sm bg-slate-50 rounded-lg px-3 py-2">
                     <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                      {r.flagged && <span title="Lot avg weight off standard">🚩</span>}
                       {r.componentName}
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${r.source === 'manufactured' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
                         {r.source === 'manufactured' ? 'Made' : 'Bought'}

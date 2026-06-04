@@ -14,6 +14,14 @@ export const ADMIN_EMAIL = 'nspenterprises24@gmail.com'
 /** Quick-add chips on the quantity stepper (fast floor entry). */
 export const QUICK_QTYS = [5, 10, 25, 50, 100, 200]
 
+/**
+ * Allowed deviation (%) between a lot's average weight and the admin standard
+ * before a red flag is shown when receiving by-weight material. Within this the
+ * lot is treated as normal; beyond it, the entry is flagged (but still saved &
+ * calculated). Change this single value to loosen/tighten the check.
+ */
+export const AVG_WEIGHT_TOLERANCE_PCT = 1
+
 /** A fresh install starts with 10 placeholder products to rename in Setup. */
 export const DEFAULT_PRODUCTS = Array.from({ length: 10 }, (_, i) => `Product ${i + 1}`)
 
