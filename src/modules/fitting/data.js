@@ -5,7 +5,7 @@
  */
 import { createCollection, createSingleton, makeId } from '../../core/db/repository'
 import { makeNormalizer } from '../../core/schema/field'
-import { componentSchema, productSchema, receiptSchema, productionSchema } from './schema'
+import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema } from './schema'
 import { KEYS, DEFAULT_PRODUCTS } from './config'
 
 export const componentsRepo = createCollection(KEYS.components, {
@@ -13,10 +13,12 @@ export const componentsRepo = createCollection(KEYS.components, {
   normalize: makeNormalizer(componentSchema),
 })
 
-/** Seed 10 placeholder products (empty recipes) for a fresh install. */
+/** Seed the catalogue products (empty recipes) for a fresh install. */
 export const productsRepo = createCollection(KEYS.products, {
   seed: () => DEFAULT_PRODUCTS.map((name, i) => ({
-    id: makeId('p'), name, recipe: [], createdAt: new Date().toISOString(), order: i,
+    id: makeId('p'), name, recipe: [],
+    photo: '', targetDay: 0, targetMonth: 0,
+    createdAt: new Date().toISOString(), order: i,
   })),
   normalize: makeNormalizer(productSchema),
 })
@@ -29,6 +31,11 @@ export const receiptsRepo = createCollection(KEYS.receipts, {
 export const productionRepo = createCollection(KEYS.production, {
   seed: () => [],
   normalize: makeNormalizer(productionSchema),
+})
+
+export const adjustmentsRepo = createCollection(KEYS.adjustments, {
+  seed: () => [],
+  normalize: makeNormalizer(adjustmentSchema),
 })
 
 export const logsRepo = createCollection(KEYS.logs, { seed: () => [] })

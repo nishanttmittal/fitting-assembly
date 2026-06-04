@@ -51,7 +51,7 @@ try {
   await page.locator('button:has-text("Edit")').first().click()
   await page.waitForSelector('text=Add raw material')
   await page.locator('button:has-text("M8 Bolt")').click()   // ＋ add from available list
-  await page.fill('input[type=number]', '4')                 // qty per piece (only number input)
+  await page.fill('input[type=number] >> nth=-1', '4')       // qty per piece (last number input)
   await page.click('button:has-text("Save Recipe")')
   await page.waitForSelector('text=M8 Bolt × 4')
   assert(true, 'Recipe saved via toppings picker (4 × M8 Bolt)')
@@ -68,21 +68,24 @@ try {
   await page.click('text=Home')
   await page.locator('button:has-text("Receive stock, backup")').click() // the Admin card
   await page.waitForSelector('text=Incoming Material')
+  assert(await page.locator('text=Physical Stock-take').isVisible(), 'Stock-take tool present in Admin')
   await page.click('button:has-text("Manufactured")')
   await page.fill('input[placeholder="0"]', '20')
   await page.click('button:has-text("Add to Stock")')
   await page.waitForSelector('text=Made')
   assert(true, 'Received 20 manufactured (stock now 120)')
 
-  console.log('\n[5] Shop Floor: enter Product 1 × 10 (uses 40)')
+  console.log('\n[5] Shop Floor: tap product tile → qty 10 (uses 40)')
   await switchRole()
   await page.locator('text=Shop Floor').click()
-  await page.waitForSelector('text=Enter Production')
+  await page.waitForSelector('text=Tap the product')
+  await page.locator('button:has-text("UTM-1")').first().click()   // photo tile
+  await page.waitForSelector('text=Quantity assembled')
   await page.fill('input[inputmode=numeric]', '10')
   await page.waitForSelector('text=40 used')
   await page.click('button:has-text("Save Production")')
   await page.waitForSelector('text=Saved:')
-  assert(await page.locator('text=× 10').first().isVisible(), 'Production saved on floor interface')
+  assert(await page.locator('text=× 10').first().isVisible(), 'Production saved via photo-tile floor flow')
 
   console.log('\n[6] Name-based auto-feed: inject receipt by name only')
   await page.evaluate(() => {

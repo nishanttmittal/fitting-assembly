@@ -1,4 +1,8 @@
 node_modules
 dist
 test-fail.png
+test-weight-fail.png
+sync-A.png
+sync-B.png
+montage.png
 .DS_Store

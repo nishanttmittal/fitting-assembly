@@ -12,7 +12,10 @@ import {
 } from '../../../core/ui'
 import { todayStr, fmtNum, fmtDec } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
-import { computeStock, piecesFromWeight } from '../logic/stock'
+import { computeStock, piecesFromWeight, materialCostOf } from '../logic/stock'
+import { compressImage } from '../logic/image'
+import ProductPhoto from '../components/ProductPhoto'
+import { useRef } from 'react'
 
 /** Small coloured tag showing where a component comes from. */
 export function SourceBadge({ source }) {
@@ -26,11 +29,11 @@ export function SourceBadge({ source }) {
 }
 
 function ComponentsTab() {
-  const { components, products, receipts, production, log } = useFitting()
+  const { components, products, receipts, production, adjustments, log } = useFitting()
   const { msg, show } = useToast()
   const stockMap = useMemo(
-    () => computeStock(components.list, receipts.list, production.list),
-    [components.list, receipts.list, production.list]
+    () => computeStock(components.list, receipts.list, production.list, adjustments.list),
+    [components.list, receipts.list, production.list, adjustments.list]
   )
 
   const [name, setName] = useState('')
@@ -42,6 +45,11 @@ function ComponentsTab() {
   const [measureBy, setMeasureBy] = useState('number')
   const [avgWeight, setAvgWeight] = useState('')
   const [weightUnit, setWeightUnit] = useState('kg')
+  const [reorderLevel, setReorderLevel] = useState('')
+  const [leadTime, setLeadTime] = useState('')
+  const [supplierName, setSupplierName] = useState('')
+  const [supplierPhone, setSupplierPhone] = useState('')
+  const [unitCost, setUnitCost] = useState('')
   const [editId, setEditId] = useState(null)
   const [bulk, setBulk] = useState(null)     // component being added to all products
   const [bulkQty, setBulkQty] = useState('1')
@@ -68,6 +76,8 @@ function ComponentsTab() {
     const row = components.insert({
       name: nm, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim(),
       measureBy, avgWeight: byWeight ? Number(avgWeight) || 0 : 0, weightUnit: weightUnit.trim() || 'kg',
+      reorderLevel: Number(reorderLevel) || 0, leadTimeDays: Number(leadTime) || 0,
+      supplierName: supplierName.trim(), supplierPhone: supplierPhone.trim(), unitCost: Number(unitCost) || 0,
     })
     if (openingPieces > 0) {
       receipts.insert({
@@ -80,6 +90,7 @@ function ComponentsTab() {
     show('Component added ✓')
     setName(''); setUnit('pcs'); setOpening(''); setLowAt(''); setSource('purchased'); setSourceApp('')
     setMeasureBy('number'); setAvgWeight(''); setWeightUnit('kg')
+    setReorderLevel(''); setLeadTime(''); setSupplierName(''); setSupplierPhone(''); setUnitCost('')
   }
 
   const saveEdit = (c, patch) => {
@@ -150,6 +161,15 @@ function ComponentsTab() {
             <TextInput className="mt-1" placeholder="e.g. coil-slitter" value={sourceApp} onChange={e => setSourceApp(e.target.value)} />
           </div>
         )}
+        <div className="grid grid-cols-2 gap-2">
+          <div><FieldLabel>Reorder level (pcs)</FieldLabel><NumberInput className="mt-1" placeholder="0" value={reorderLevel} onChange={e => setReorderLevel(e.target.value)} /></div>
+          <div><FieldLabel>Lead time (days)</FieldLabel><NumberInput className="mt-1" placeholder="0" value={leadTime} onChange={e => setLeadTime(e.target.value)} /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div><FieldLabel>Supplier</FieldLabel><TextInput className="mt-1" placeholder="name" value={supplierName} onChange={e => setSupplierName(e.target.value)} /></div>
+          <div><FieldLabel>Supplier phone</FieldLabel><TextInput className="mt-1" placeholder="phone" value={supplierPhone} onChange={e => setSupplierPhone(e.target.value)} /></div>
+        </div>
+        <div><FieldLabel>Cost / piece (₹)</FieldLabel><NumberInput className="mt-1" placeholder="0" value={unitCost} onChange={e => setUnitCost(e.target.value)} /></div>
         <Button variant="primary" className="w-full" onClick={add}>Add Component</Button>
       </Card>
 
@@ -170,11 +190,13 @@ function ComponentsTab() {
                         {c.name} <span className="text-xs text-slate-400">({c.unit})</span>
                         <SourceBadge source={c.source} />
                         {c.measureBy === 'weight' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">⚖ {fmtDec(c.avgWeight)}{c.weightUnit || 'kg'}/pc</span>}
+                        {stockMap[c.id]?.reorder && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">REORDER</span>}
                       </div>
                       <div className="text-xs text-slate-400">
                         stock {fmtNum(stockMap[c.id]?.stock ?? 0)} pcs
                         {c.measureBy === 'weight' && c.avgWeight > 0 ? ` (≈ ${fmtDec((stockMap[c.id]?.stock ?? 0) * c.avgWeight)} ${c.weightUnit || 'kg'})` : ''}
-                        {' · low at '}{fmtNum(c.lowAt)}{c.sourceApp ? ` · fed by ${c.sourceApp}` : ''}
+                        {' · low '}{fmtNum(c.lowAt)}{c.reorderLevel > 0 ? ` · reorder ${fmtNum(c.reorderLevel)}` : ''}
+                        {c.unitCost > 0 ? ` · ₹${fmtNum(c.unitCost)}/pc` : ''}{c.supplierName ? ` · ${c.supplierName}` : ''}
                       </div>
                     </div>
                     <div className="flex gap-1">
@@ -220,6 +242,11 @@ function EditComponentRow({ c, onCancel, onSave }) {
   const [measureBy, setMeasureBy] = useState(c.measureBy || 'number')
   const [avgWeight, setAvgWeight] = useState(String(c.avgWeight ?? 0))
   const [weightUnit, setWeightUnit] = useState(c.weightUnit || 'kg')
+  const [reorderLevel, setReorderLevel] = useState(String(c.reorderLevel ?? 0))
+  const [leadTime, setLeadTime] = useState(String(c.leadTimeDays ?? 0))
+  const [supplierName, setSupplierName] = useState(c.supplierName || '')
+  const [supplierPhone, setSupplierPhone] = useState(c.supplierPhone || '')
+  const [unitCost, setUnitCost] = useState(String(c.unitCost ?? 0))
   const SOURCE_OPTS = [
     { value: 'purchased', label: 'Purchased (outside)' },
     { value: 'manufactured', label: 'Manufactured (in-house)' },
@@ -236,6 +263,10 @@ function EditComponentRow({ c, onCancel, onSave }) {
         <div><FieldLabel>Unit</FieldLabel><TextInput className="mt-1" value={unit} onChange={e => setUnit(e.target.value)} /></div>
         <div><FieldLabel>Low at (pcs)</FieldLabel><NumberInput className="mt-1" value={lowAt} onChange={e => setLowAt(e.target.value)} /></div>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div><FieldLabel>Reorder level</FieldLabel><NumberInput className="mt-1" value={reorderLevel} onChange={e => setReorderLevel(e.target.value)} /></div>
+        <div><FieldLabel>Lead time (days)</FieldLabel><NumberInput className="mt-1" value={leadTime} onChange={e => setLeadTime(e.target.value)} /></div>
+      </div>
       <div><FieldLabel>Measured by</FieldLabel><Select className="mt-1" value={measureBy} onChange={e => setMeasureBy(e.target.value)} options={MEASURE_OPTS} /></div>
       {measureBy === 'weight' && (
         <div className="grid grid-cols-2 gap-2 bg-amber-50 rounded-xl p-2">
@@ -247,11 +278,18 @@ function EditComponentRow({ c, onCancel, onSave }) {
       {source !== 'purchased' && (
         <div><FieldLabel>Fed by app</FieldLabel><TextInput className="mt-1" placeholder="e.g. coil-slitter" value={sourceApp} onChange={e => setSourceApp(e.target.value)} /></div>
       )}
+      <div className="grid grid-cols-2 gap-2">
+        <div><FieldLabel>Supplier</FieldLabel><TextInput className="mt-1" value={supplierName} onChange={e => setSupplierName(e.target.value)} /></div>
+        <div><FieldLabel>Supplier phone</FieldLabel><TextInput className="mt-1" value={supplierPhone} onChange={e => setSupplierPhone(e.target.value)} /></div>
+      </div>
+      <div><FieldLabel>Cost / piece (₹)</FieldLabel><NumberInput className="mt-1" value={unitCost} onChange={e => setUnitCost(e.target.value)} /></div>
       <div className="flex gap-2">
         <Button size="sm" variant="ghost" className="flex-1" onClick={onCancel}>Cancel</Button>
         <Button size="sm" variant="success" className="flex-1" onClick={() => onSave(c, {
           name: name.trim() || c.name, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim(),
           measureBy, avgWeight: measureBy === 'weight' ? Number(avgWeight) || 0 : 0, weightUnit: weightUnit.trim() || 'kg',
+          reorderLevel: Number(reorderLevel) || 0, leadTimeDays: Number(leadTime) || 0,
+          supplierName: supplierName.trim(), supplierPhone: supplierPhone.trim(), unitCost: Number(unitCost) || 0,
         })}>Save</Button>
       </div>
     </div>
@@ -307,11 +345,19 @@ function ProductsTab() {
               onSave={(patch) => { products.update(p.id, patch); log('EDIT_RECIPE', p.name, 'admin'); show('Recipe saved ✓'); setEditId(null) }} />
           ) : (
             <div>
-              <div className="flex items-center justify-between">
-                <div className="font-bold text-slate-800">{p.name}</div>
-                <div className="flex gap-1.5">
-                  <button onClick={() => setEditId(p.id)} className="text-blue-600 text-sm font-bold px-2">Edit</button>
-                  <button onClick={() => delProduct(p)} className="text-red-500 text-sm font-bold px-2">Del</button>
+              <div className="flex items-start gap-3">
+                <ProductPhoto product={p} className="w-14 h-14 flex-shrink-0 border border-slate-200" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-slate-800 truncate">{p.name}</div>
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <button onClick={() => setEditId(p.id)} className="text-blue-600 text-sm font-bold px-2">Edit</button>
+                      <button onClick={() => delProduct(p)} className="text-red-500 text-sm font-bold px-2">Del</button>
+                    </div>
+                  </div>
+                  {(p.targetDay > 0 || p.targetMonth > 0) && (
+                    <div className="text-xs text-slate-400 mt-0.5">target {p.targetDay > 0 ? `${fmtNum(p.targetDay)}/day` : ''}{p.targetDay > 0 && p.targetMonth > 0 ? ' · ' : ''}{p.targetMonth > 0 ? `${fmtNum(p.targetMonth)}/mo` : ''}</div>
+                  )}
                 </div>
               </div>
               <div className="mt-2 text-sm text-slate-500">
@@ -342,6 +388,10 @@ function RecipeEditor({ product, components, onCancel, onSave }) {
     const m = {}; (product.recipe || []).forEach(r => { if (r.componentId) m[r.componentId] = r.qty }); return m
   })
   const [q, setQ] = useState('')
+  const [photo, setPhoto] = useState(product.photo || '')
+  const [targetDay, setTargetDay] = useState(String(product.targetDay ?? 0))
+  const [targetMonth, setTargetMonth] = useState(String(product.targetMonth ?? 0))
+  const fileRef = useRef(null)
 
   const inRecipe = (id) => Object.prototype.hasOwnProperty.call(recipe, id)
   const addItem = (id) => setRecipe(r => ({ ...r, [id]: r[id] || 1 }))
@@ -356,19 +406,52 @@ function RecipeEditor({ product, components, onCancel, onSave }) {
     .filter(c => !term || c.name.toLowerCase().includes(term))
     .sort(byName)
 
+  // Live material cost per piece from the current recipe + component unit costs.
+  const builtRecipe = Object.entries(recipe).filter(([, v]) => Number(v) > 0).map(([componentId, v]) => ({ componentId, qty: Number(v) }))
+  const matCost = materialCostOf({ recipe: builtRecipe }, components)
+
+  const onPickPhoto = async (e) => {
+    const f = e.target.files?.[0]
+    if (f) setPhoto(await compressImage(f))
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
   const save = () => {
-    const list = Object.entries(recipe)
-      .filter(([, v]) => Number(v) > 0)
-      .map(([componentId, v]) => ({ componentId, qty: Number(v) }))
-    onSave({ name: name.trim() || product.name, recipe: list })
+    onSave({
+      name: name.trim() || product.name, recipe: builtRecipe, photo,
+      targetDay: Number(targetDay) || 0, targetMonth: Number(targetMonth) || 0,
+    })
   }
 
   return (
     <div className="space-y-3">
-      <div>
-        <FieldLabel>Product name</FieldLabel>
-        <TextInput className="mt-1" value={name} onChange={e => setName(e.target.value)} />
+      {/* Photo + name */}
+      <div className="flex gap-3">
+        <ProductPhoto product={{ ...product, photo, name }} className="w-20 h-20 flex-shrink-0 border border-slate-200" />
+        <div className="flex-1 space-y-2">
+          <div>
+            <FieldLabel>Product name</FieldLabel>
+            <TextInput className="mt-1" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="neutral" className="flex-1" onClick={() => fileRef.current?.click()}>📷 Photo</Button>
+            {photo && <Button size="sm" variant="ghost" onClick={() => setPhoto('')}>Reset</Button>}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
+        </div>
       </div>
+
+      {/* Targets */}
+      <div className="grid grid-cols-2 gap-2">
+        <div><FieldLabel>Daily target</FieldLabel><NumberInput className="mt-1" placeholder="0" value={targetDay} onChange={e => setTargetDay(e.target.value)} /></div>
+        <div><FieldLabel>Monthly target</FieldLabel><NumberInput className="mt-1" placeholder="0" value={targetMonth} onChange={e => setTargetMonth(e.target.value)} /></div>
+      </div>
+
+      {matCost > 0 && (
+        <div className="text-xs font-semibold text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+          Material cost ≈ <span className="text-slate-800">₹{fmtNum(matCost)}/piece</span> (from recipe)
+        </div>
+      )}
 
       {components.length === 0 ? (
         <p className="text-sm text-amber-600">Add your raw materials in the <b>Components</b> tab first, then come back to pick them here.</p>

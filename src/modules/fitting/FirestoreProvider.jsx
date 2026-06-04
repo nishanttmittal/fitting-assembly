@@ -15,7 +15,7 @@ import { onSnapshot, setDoc, deleteDoc, getDocs, writeBatch } from 'firebase/fir
 import { db, paths, ensureSignedIn } from '../../core/db/firebase'
 import { makeNormalizer } from '../../core/schema/field'
 import { makeId } from '../../core/db/repository'
-import { componentSchema, productSchema, receiptSchema, productionSchema } from './schema'
+import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema } from './schema'
 import { DEFAULT_PRODUCTS } from './config'
 import { lastUsedStore } from './data'
 import { FittingCtx } from './FittingContext'
@@ -66,6 +66,7 @@ const normComponent  = makeNormalizer(componentSchema)
 const normProduct    = makeNormalizer(productSchema)
 const normReceipt    = makeNormalizer(receiptSchema)
 const normProduction = makeNormalizer(productionSchema)
+const normAdjustment = makeNormalizer(adjustmentSchema)
 
 export function FirestoreProvider({ children }) {
   const [ready, setReady] = useState(false)
@@ -76,6 +77,7 @@ export function FirestoreProvider({ children }) {
   const products   = useCloudCollection(paths.products, paths.product, normProduct)
   const receipts   = useCloudCollection(paths.receipts, paths.receipt, normReceipt)
   const production = useCloudCollection(paths.production, paths.productionDoc, normProduction)
+  const adjustments = useCloudCollection(paths.adjustments, paths.adjustmentDoc, normAdjustment)
   const logs       = useCloudCollection(paths.logs, paths.logDoc, (r) => r)
 
   // Sign in (anonymous), then the collection listeners above start flowing.
@@ -105,7 +107,10 @@ export function FirestoreProvider({ children }) {
       seededRef.current = true
       DEFAULT_PRODUCTS.forEach((name, i) => {
         const id = `seed_p${i + 1}`
-        setDoc(paths.product(id), { id, name, recipe: [], order: i, createdAt: new Date().toISOString() })
+        setDoc(paths.product(id), {
+          id, name, recipe: [],
+          photo: '', targetDay: 0, targetMonth: 0, order: i, createdAt: new Date().toISOString(),
+        })
       })
     }
   }, [ready, products.list.length])
@@ -134,7 +139,7 @@ export function FirestoreProvider({ children }) {
   }
 
   const value = {
-    components, products, receipts, production, logs,
+    components, products, receipts, production, adjustments, logs,
     lastUsed: lastUsedStore,
     log,
     cloud: { connected: !error, error },

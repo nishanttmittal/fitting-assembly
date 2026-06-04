@@ -49,6 +49,8 @@ export const paths = {
   receipt: (id) => cdoc('receipts', id),
   production: () => coll('production'),
   productionDoc: (id) => cdoc('production', id),
+  adjustments: () => coll('adjustments'),
+  adjustmentDoc: (id) => cdoc('adjustments', id),
   logs: () => coll('logs'),
   logDoc: (id) => cdoc('logs', id),
 }

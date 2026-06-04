@@ -24,8 +24,9 @@ export const AVG_WEIGHT_TOLERANCE_PCT = 1
 
 /**
  * The final products produced by the fitting department (UNICO chair
- * mechanisms & base parts). More can be added in-app (admin → Products).
- * Names lead with the catalogue code so they sort and search nicely.
+ * mechanisms & base parts). The code (first token of the name, e.g. UTM-1) is
+ * also used to find its photo at `${BASE_URL}products/<code>.jpg`. More can be
+ * added in-app (admin → Products).
  */
 export const DEFAULT_PRODUCTS = [
   'UTM-1 Tilting Mechanism',
@@ -55,10 +56,11 @@ export const DEFAULT_COMPONENTS = []
 
 /** Storage keys owned by this module. */
 export const KEYS = {
-  components: 'components',
-  products:   'products',
-  receipts:   'receipts',
-  production: 'production',
-  logs:       'logs',
-  lastUsed:   'last_used',
+  components:  'components',
+  products:    'products',
+  receipts:    'receipts',
+  production:  'production',
+  adjustments: 'adjustments',
+  logs:        'logs',
+  lastUsed:    'last_used',
 }

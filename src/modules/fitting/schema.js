@@ -31,6 +31,10 @@ export const componentSchema = [
   field({ name: 'name',      label: 'Component', type: 'text',   default: '', required: true }),
   field({ name: 'unit',      label: 'Unit',      type: 'text',   default: 'pcs' }),
   field({ name: 'lowAt',     label: 'Low stock alert at', type: 'number', default: 0 }),
+  // Reorder management: when stock falls to/under reorderLevel, the dashboard
+  // flags "Order now". leadTimeDays is informational (how long resupply takes).
+  field({ name: 'reorderLevel', label: 'Reorder level', type: 'number', default: 0 }),
+  field({ name: 'leadTimeDays', label: 'Lead time (days)', type: 'number', default: 0 }),
   // Measurement: 'number' = counted in pieces; 'weight' = entered by weight and
   // converted to pieces using avgWeight. Stock is ALWAYS kept in pieces.
   field({ name: 'measureBy',  label: 'Measured by',          type: 'select', default: 'number',
@@ -44,6 +48,11 @@ export const componentSchema = [
             { value: 'both',         label: 'Both' },
           ] }),
   field({ name: 'sourceApp', label: 'Fed by app', type: 'text', default: '' }),
+  // Supplier (for purchased materials) — shown on shortage/reorder alerts.
+  field({ name: 'supplierName',  label: 'Supplier',       type: 'text', default: '' }),
+  field({ name: 'supplierPhone', label: 'Supplier phone', type: 'text', default: '' }),
+  // Purchase cost per piece (₹) for inventory value & material cost per product.
+  field({ name: 'unitCost',      label: 'Cost / piece (₹)', type: 'number', default: 0 }),
 ]
 
 /**
@@ -51,8 +60,16 @@ export const componentSchema = [
  * each component go into ONE finished piece. Managed by the Setup form.
  */
 export const productSchema = [
-  field({ name: 'name',   label: 'Product', type: 'text', default: '', required: true }),
-  field({ name: 'recipe', label: 'Recipe',  type: 'list', default: () => [] }),
+  field({ name: 'name',        label: 'Product',  type: 'text',   default: '', required: true }),
+  field({ name: 'recipe',      label: 'Recipe',   type: 'list',   default: () => [] }),
+  // Optional photo: a data-URL set by admin upload. When blank, the UI falls
+  // back to a bundled image at products/<code>.jpg, then to a code tile.
+  field({ name: 'photo',       label: 'Photo',    type: 'text',   default: '' }),
+  // Production targets (pieces). 0 = no target set.
+  field({ name: 'targetDay',   label: 'Daily target',   type: 'number', default: 0 }),
+  field({ name: 'targetMonth', label: 'Monthly target', type: 'number', default: 0 }),
+  // PROVISION (not built yet): a future labour app will compute cost per product
+  // from staff salary/days/hours per month and the production qty recorded here.
 ]
 
 /**
@@ -83,6 +100,21 @@ export const receiptSchema = [
   field({ name: 'sourceApp',     label: 'Fed by',    type: 'text',   default: 'manual' }),
   field({ name: 'ref',           label: 'Reference', type: 'text',   default: '' }),
   field({ name: 'note',          label: 'Note',      type: 'text',   default: '' }),
+]
+
+/**
+ * A physical stock-take / adjustment. Admin counts the real stock; we record
+ * the delta (counted − system-at-time) so computed stock matches reality and
+ * the correction is auditable (breakage, miscount, theft, etc.).
+ */
+export const adjustmentSchema = [
+  field({ name: 'date',          label: 'Date',      type: 'date',   default: todayStr, required: true }),
+  field({ name: 'componentId',   label: 'Component', type: 'select', default: '', required: true }),
+  field({ name: 'componentName', label: 'Component', type: 'text',   default: '' }),
+  field({ name: 'counted',       label: 'Counted',   type: 'number', default: 0 }),
+  field({ name: 'systemBefore',  label: 'System was', type: 'number', default: 0 }),
+  field({ name: 'delta',         label: 'Adjustment', type: 'number', default: 0 }),
+  field({ name: 'reason',        label: 'Reason',    type: 'text',   default: '' }),
 ]
 
 /**

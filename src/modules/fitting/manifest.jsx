@@ -15,12 +15,12 @@ import Admin from './pages/Admin'
 
 /** Small stats strip on the module home screen. */
 function HomeStats() {
-  const { components, receipts, production } = useFitting()
+  const { components, receipts, production, adjustments } = useFitting()
   const today = todayStr()
   const madeToday = production.list
     .filter(p => p.date === today)
     .reduce((s, p) => s + (Number(p.qty) || 0), 0)
-  const stockMap = computeStock(components.list, receipts.list, production.list)
+  const stockMap = computeStock(components.list, receipts.list, production.list, adjustments.list)
   const short = shortages(stockMap).length
 
   const stat = (n, l, tone = '') => (

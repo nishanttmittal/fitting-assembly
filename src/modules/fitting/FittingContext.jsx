@@ -14,7 +14,7 @@
 import { createContext, useContext, useCallback } from 'react'
 import { useCollection } from '../../core/hooks/useCollection'
 import {
-  componentsRepo, productsRepo, receiptsRepo, productionRepo, logsRepo, lastUsedStore,
+  componentsRepo, productsRepo, receiptsRepo, productionRepo, adjustmentsRepo, logsRepo, lastUsedStore,
 } from './data'
 import { isFirebaseConfigured } from '../../core/db/firebaseConfig'
 import { FirestoreProvider } from './FirestoreProvider'
@@ -31,18 +31,19 @@ export function FittingProvider({ children }) {
 
 /** localStorage-backed provider (offline / single-device). */
 export function LocalFittingProvider({ children }) {
-  const components = useCollection(componentsRepo)
-  const products   = useCollection(productsRepo)
-  const receipts   = useCollection(receiptsRepo)
-  const production = useCollection(productionRepo)
-  const logs       = useCollection(logsRepo)
+  const components  = useCollection(componentsRepo)
+  const products    = useCollection(productsRepo)
+  const receipts    = useCollection(receiptsRepo)
+  const production  = useCollection(productionRepo)
+  const adjustments = useCollection(adjustmentsRepo)
+  const logs        = useCollection(logsRepo)
 
   const log = useCallback((action, detail, by = 'user') => {
     logs.insert({ ts: new Date().toISOString(), action, detail, by })
   }, [logs])
 
   const value = {
-    components, products, receipts, production, logs,
+    components, products, receipts, production, adjustments, logs,
     lastUsed: lastUsedStore,
     log,
     cloud: { connected: false, error: '' }, // local mode

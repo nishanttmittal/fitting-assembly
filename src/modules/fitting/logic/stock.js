@@ -47,17 +47,23 @@ export function avgDeviationPct(standardAvg, lotAvg) {
  *
  * @returns {Object<string, {id,name,unit,lowAt,source,received,used,stock,negative,low}>}
  */
-export function computeStock(components, receipts, production) {
+export function computeStock(components, receipts, production, adjustments = []) {
   const map = {}
   const byId = {}
   const byName = {}
+  const blank = (id, name, extra = {}) => ({
+    id, name: name || 'Unknown', unit: 'pcs', lowAt: 0, reorderLevel: 0, leadTimeDays: 0,
+    source: 'purchased', measureBy: 'number', avgWeight: 0, weightUnit: 'kg',
+    supplierName: '', supplierPhone: '', unitCost: 0,
+    received: 0, used: 0, adjusted: 0, stock: 0, value: 0,
+    negative: false, low: false, reorder: false, ...extra,
+  })
   for (const c of components) {
-    const entry = {
-      id: c.id, name: c.name, unit: c.unit || 'pcs', lowAt: num(c.lowAt),
-      source: c.source || 'purchased',
-      measureBy: c.measureBy || 'number', avgWeight: num(c.avgWeight), weightUnit: c.weightUnit || 'kg',
-      received: 0, used: 0, stock: 0, negative: false, low: false,
-    }
+    const entry = blank(c.id, c.name, {
+      unit: c.unit || 'pcs', lowAt: num(c.lowAt), reorderLevel: num(c.reorderLevel), leadTimeDays: num(c.leadTimeDays),
+      source: c.source || 'purchased', measureBy: c.measureBy || 'number', avgWeight: num(c.avgWeight), weightUnit: c.weightUnit || 'kg',
+      supplierName: c.supplierName || '', supplierPhone: c.supplierPhone || '', unitCost: num(c.unitCost),
+    })
     map[c.id] = entry
     byId[c.id] = entry
     if (c.name) byName[normName(c.name)] = entry
@@ -71,7 +77,7 @@ export function computeStock(components, receipts, production) {
     if (nn && byName[nn]) return byName[nn]
     const key = id || (nn ? `name:${nn}` : 'unknown')
     if (!map[key]) {
-      map[key] = { id: key, name: name || 'Unknown', unit: 'pcs', lowAt: 0, source: 'purchased', measureBy: 'number', avgWeight: 0, weightUnit: 'kg', received: 0, used: 0, stock: 0, negative: false, low: false }
+      map[key] = blank(key, name)
       if (nn) byName[nn] = map[key]
     }
     return map[key]
@@ -85,13 +91,40 @@ export function computeStock(components, receipts, production) {
       resolve(c.componentId, c.componentName).used += num(c.qty)
     }
   }
+  for (const a of adjustments) {
+    resolve(a.componentId, a.componentName).adjusted += num(a.delta)
+  }
   for (const id in map) {
     const m = map[id]
-    m.stock = m.received - m.used
+    m.stock = m.received - m.used + m.adjusted
+    m.value = Math.max(0, m.stock) * m.unitCost
     m.negative = m.stock < 0
     m.low = m.stock >= 0 && m.lowAt > 0 && m.stock <= m.lowAt
+    m.reorder = m.reorderLevel > 0 && m.stock <= m.reorderLevel
   }
   return map
+}
+
+/**
+ * Materials at/below reorder level (or negative) — i.e. "order now". Sorted
+ * most-urgent first. Each carries the shortfall to its reorder level.
+ */
+export function reorderList(stockMap) {
+  return Object.values(stockMap)
+    .filter(m => m.reorder || m.negative)
+    .map(m => ({ ...m, shortfall: Math.max(0, m.reorderLevel - m.stock) }))
+    .sort((a, b) => (a.stock - a.reorderLevel) - (b.stock - b.reorderLevel))
+}
+
+/** Total inventory value at purchase cost (Σ stock × unit cost). */
+export function inventoryValue(stockMap) {
+  return Object.values(stockMap).reduce((s, m) => s + m.value, 0)
+}
+
+/** Material cost to make ONE piece of a product (Σ recipe qty × unit cost). */
+export function materialCostOf(product, components) {
+  const cost = Object.fromEntries(components.map(c => [c.id, num(c.unitCost)]))
+  return recipeOf(product).reduce((s, r) => s + num(r.qty) * (cost[r.componentId] || 0), 0)
 }
 
 /**

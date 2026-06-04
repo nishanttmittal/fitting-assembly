@@ -13,11 +13,11 @@ import { computeStock, piecesFromWeight, weightFromPieces, avgDeviationPct } fro
 import { AVG_WEIGHT_TOLERANCE_PCT } from '../config'
 
 function ReceiveStock() {
-  const { components, receipts, production, log } = useFitting()
+  const { components, receipts, production, adjustments, log } = useFitting()
   const { msg, show } = useToast()
   const stockMap = useMemo(
-    () => computeStock(components.list, receipts.list, production.list),
-    [components.list, receipts.list, production.list]
+    () => computeStock(components.list, receipts.list, production.list, adjustments.list),
+    [components.list, receipts.list, production.list, adjustments.list]
   )
   const sorted = [...components.list].sort((a, b) => a.name.localeCompare(b.name))
   const [componentId, setComponentId] = useState(sorted[0]?.id || '')
@@ -170,16 +170,75 @@ function ReceiveStock() {
   )
 }
 
+/** Physical stock-take: count actual stock; record the correction (delta). */
+function StockTake() {
+  const { components, receipts, production, adjustments, log } = useFitting()
+  const { msg, show } = useToast()
+  const stockMap = useMemo(
+    () => computeStock(components.list, receipts.list, production.list, adjustments.list),
+    [components.list, receipts.list, production.list, adjustments.list]
+  )
+  const sorted = [...components.list].sort((a, b) => a.name.localeCompare(b.name))
+  const [componentId, setComponentId] = useState(sorted[0]?.id || '')
+  const [counted, setCounted] = useState('')
+  const [reason, setReason] = useState('')
+
+  const comp = components.list.find(c => c.id === componentId)
+  const systemBefore = stockMap[componentId]?.stock ?? 0
+  const delta = (Number(counted) || 0) - systemBefore
+
+  const apply = () => {
+    if (!comp) return show('Pick a component', 2000)
+    if (counted === '') return show('Enter the counted quantity', 2000)
+    if (delta === 0) return show('Counted matches system — no change', 2500)
+    adjustments.insert({
+      date: todayStr(), componentId: comp.id, componentName: comp.name,
+      counted: Number(counted) || 0, systemBefore, delta, reason: reason.trim(),
+    })
+    log('STOCKTAKE', `${comp.name}: system ${fmtNum(systemBefore)} → counted ${fmtNum(counted)} (${delta > 0 ? '+' : ''}${fmtNum(delta)})${reason ? ' · ' + reason.trim() : ''}`, 'admin')
+    show('Stock corrected ✓')
+    setCounted(''); setReason('')
+  }
+
+  return (
+    <Card className="p-5 space-y-3">
+      <FieldLabel>Physical Stock-take</FieldLabel>
+      <p className="text-xs text-slate-400 -mt-1">Count actual stock and correct the system (breakage, miscount, etc.).</p>
+      {components.list.length === 0 ? (
+        <p className="text-sm text-slate-400">Add components first.</p>
+      ) : (
+        <>
+          <Select value={componentId} onChange={e => setComponentId(e.target.value)}
+            options={sorted.map(c => ({ value: c.id, label: c.name }))} />
+          <div className="flex items-center justify-between text-sm bg-slate-50 rounded-xl px-4 py-2.5">
+            <span className="text-slate-500">System now</span>
+            <span className="font-mono font-bold text-slate-700">{fmtNum(systemBefore)} pcs</span>
+          </div>
+          <div><FieldLabel>Counted (actual)</FieldLabel><NumberInput className="mt-1" placeholder="0" value={counted} onChange={e => setCounted(e.target.value)} /></div>
+          {counted !== '' && (
+            <div className={`text-sm font-bold ${delta === 0 ? 'text-slate-500' : delta > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              Adjustment: {delta > 0 ? '+' : ''}{fmtNum(delta)} pcs
+            </div>
+          )}
+          <TextInput placeholder="Reason (optional)" value={reason} onChange={e => setReason(e.target.value)} />
+          <Button variant="primary" className="w-full" onClick={apply}>Apply Correction</Button>
+        </>
+      )}
+    </Card>
+  )
+}
+
 function DataTools() {
-  const { components, products, receipts, production, logs, log } = useFitting()
+  const { components, products, receipts, production, adjustments, logs, log } = useFitting()
   const { msg, show } = useToast()
   const fileRef = useRef(null)
 
   const backup = () => {
     const data = {
-      app: 'fitting-assembly', exportedAt: new Date().toISOString(),
+      app: 'fitting', exportedAt: new Date().toISOString(),
       components: components.list, products: products.list,
-      receipts: receipts.list, production: production.list, logs: logs.list,
+      receipts: receipts.list, production: production.list,
+      adjustments: adjustments.list, logs: logs.list,
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
@@ -199,6 +258,7 @@ function DataTools() {
       await products.replaceAll(data.products || [])
       await receipts.replaceAll(data.receipts || [])
       await production.replaceAll(data.production || [])
+      await adjustments.replaceAll(data.adjustments || [])
       if (logs.replaceAll) await logs.replaceAll(data.logs || [])
       log('RESTORE', `Restored backup from ${file.name}`, 'admin')
       show('Restored ✓ — reopen the app if needed')
@@ -218,7 +278,7 @@ function DataTools() {
 
   const resetAll = async () => {
     if (!confirm('Erase EVERYTHING (components, products, receipts, production)? This cannot be undone.')) return
-    await Promise.all([components.reset(), products.reset(), receipts.reset(), production.reset()])
+    await Promise.all([components.reset(), products.reset(), receipts.reset(), production.reset(), adjustments.reset()])
     log('RESET', 'Erased all data', 'admin')
     show('All data erased ✓')
   }
@@ -265,6 +325,7 @@ export default function Admin() {
   return (
     <div className="max-w-lg mx-auto p-4 space-y-4">
       <ReceiveStock />
+      <StockTake />
       <DataTools />
       <Logs />
     </div>
