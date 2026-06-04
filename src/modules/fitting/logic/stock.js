@@ -47,7 +47,7 @@ export function avgDeviationPct(standardAvg, lotAvg) {
  *
  * @returns {Object<string, {id,name,unit,lowAt,source,received,used,stock,negative,low}>}
  */
-export function computeStock(components, receipts, production, adjustments = []) {
+export function computeStock(components, receipts, production, adjustments = [], rejects = []) {
   const map = {}
   const byId = {}
   const byName = {}
@@ -55,7 +55,7 @@ export function computeStock(components, receipts, production, adjustments = [])
     id, name: name || 'Unknown', unit: 'pcs', lowAt: 0, reorderLevel: 0, leadTimeDays: 0,
     source: 'purchased', measureBy: 'number', avgWeight: 0, weightUnit: 'kg',
     supplierName: '', supplierPhone: '', unitCost: 0,
-    received: 0, used: 0, adjusted: 0, stock: 0, value: 0,
+    received: 0, used: 0, adjusted: 0, rejected: 0, stock: 0, value: 0,
     negative: false, low: false, reorder: false, ...extra,
   })
   for (const c of components) {
@@ -94,9 +94,12 @@ export function computeStock(components, receipts, production, adjustments = [])
   for (const a of adjustments) {
     resolve(a.componentId, a.componentName).adjusted += num(a.delta)
   }
+  for (const r of rejects) {
+    resolve(r.componentId, r.componentName).rejected += num(r.qty)
+  }
   for (const id in map) {
     const m = map[id]
-    m.stock = m.received - m.used + m.adjusted
+    m.stock = m.received - m.used + m.adjusted - m.rejected
     m.value = Math.max(0, m.stock) * m.unitCost
     m.negative = m.stock < 0
     m.low = m.stock >= 0 && m.lowAt > 0 && m.stock <= m.lowAt

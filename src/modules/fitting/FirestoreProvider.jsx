@@ -15,7 +15,7 @@ import { onSnapshot, setDoc, deleteDoc, getDocs, writeBatch } from 'firebase/fir
 import { db, paths, ensureSignedIn } from '../../core/db/firebase'
 import { makeNormalizer } from '../../core/schema/field'
 import { makeId } from '../../core/db/repository'
-import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema } from './schema'
+import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema, rejectSchema } from './schema'
 import { DEFAULT_PRODUCTS, DEFAULT_COMPONENTS } from './config'
 import { lastUsedStore } from './data'
 import { FittingCtx } from './FittingContext'
@@ -67,6 +67,7 @@ const normProduct    = makeNormalizer(productSchema)
 const normReceipt    = makeNormalizer(receiptSchema)
 const normProduction = makeNormalizer(productionSchema)
 const normAdjustment = makeNormalizer(adjustmentSchema)
+const normReject     = makeNormalizer(rejectSchema)
 
 export function FirestoreProvider({ children }) {
   const [ready, setReady] = useState(false)
@@ -78,6 +79,7 @@ export function FirestoreProvider({ children }) {
   const receipts   = useCloudCollection(paths.receipts, paths.receipt, normReceipt)
   const production = useCloudCollection(paths.production, paths.productionDoc, normProduction)
   const adjustments = useCloudCollection(paths.adjustments, paths.adjustmentDoc, normAdjustment)
+  const rejects    = useCloudCollection(paths.rejects, paths.rejectDoc, normReject)
   const logs       = useCloudCollection(paths.logs, paths.logDoc, (r) => r)
 
   // Sign in (anonymous), then the collection listeners above start flowing.
@@ -146,7 +148,7 @@ export function FirestoreProvider({ children }) {
   }
 
   const value = {
-    components, products, receipts, production, adjustments, logs,
+    components, products, receipts, production, adjustments, rejects, logs,
     lastUsed: lastUsedStore,
     log,
     cloud: { connected: !error, error },

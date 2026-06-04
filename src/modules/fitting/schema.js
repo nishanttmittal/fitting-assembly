@@ -54,6 +54,9 @@ export const componentSchema = [
   field({ name: 'supplierPhone', label: 'Supplier phone', type: 'text', default: '' }),
   // Purchase cost per piece (₹) for inventory value & material cost per product.
   field({ name: 'unitCost',      label: 'Cost / piece (₹)', type: 'number', default: 0 }),
+  // Packing material (e.g. a box) — consumed only for GOOD pieces, not rejects
+  // (you don't pack a defective unit).
+  field({ name: 'packing',       label: 'Packing material', type: 'toggle', default: false }),
 ]
 
 /**
@@ -128,6 +131,47 @@ export const productionSchema = [
   field({ name: 'date',        label: 'Date',     type: 'date',   default: todayStr, required: true }),
   field({ name: 'productId',   label: 'Product',  type: 'select', default: '', required: true }),
   field({ name: 'productName', label: 'Product',  type: 'text',   default: '' }),
-  field({ name: 'qty',         label: 'Quantity', type: 'number', default: 0, required: true }),
+  field({ name: 'qty',         label: 'Good',     type: 'number', default: 0, required: true }),
+  // Rejected finished pieces (failed QC). They still consumed their materials,
+  // so `consumed` is the snapshot for (good + reject).
+  field({ name: 'reject',      label: 'Rejected', type: 'number', default: 0 }),
   field({ name: 'consumed',    label: 'Consumed', type: 'list',   default: () => [] }),
+]
+
+/**
+ * A raw-material reject / scrap — a defective part the floor wants discarded.
+ * Stays `pending` until admin approves; only APPROVED rejects reduce stock.
+ */
+export const rejectSchema = [
+  field({ name: 'date',          label: 'Date',      type: 'date',   default: todayStr, required: true }),
+  field({ name: 'componentId',   label: 'Component', type: 'select', default: '', required: true }),
+  field({ name: 'componentName', label: 'Component', type: 'text',   default: '' }),
+  field({ name: 'qty',           label: 'Quantity',  type: 'number', default: 0, required: true }),
+  field({ name: 'reason',        label: 'Reason',    type: 'text',   default: '' }),
+  field({ name: 'by',            label: 'By',        type: 'text',   default: 'floor' }),
+  field({ name: 'status',        label: 'Status',    type: 'select', default: 'pending',
+          options: [{ value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' }] }),
+]
+
+/**
+ * A repaired finished product — a defective unit the floor fixed. Stays
+ * `pending` until admin approves; only APPROVED repairs add to ready stock
+ * (and reduce the rejected pool).
+ */
+export const repairSchema = [
+  field({ name: 'date',        label: 'Date',     type: 'date',   default: todayStr, required: true }),
+  field({ name: 'productId',   label: 'Product',  type: 'select', default: '', required: true }),
+  field({ name: 'productName', label: 'Product',  type: 'text',   default: '' }),
+  field({ name: 'qty',         label: 'Quantity', type: 'number', default: 0, required: true }),
+  field({ name: 'status',      label: 'Status',   type: 'select', default: 'pending',
+          options: [{ value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' }] }),
+]
+
+/** A dispatch / OUT of finished product — reduces ready stock. */
+export const dispatchSchema = [
+  field({ name: 'date',        label: 'Date',     type: 'date',   default: todayStr, required: true }),
+  field({ name: 'productId',   label: 'Product',  type: 'select', default: '', required: true }),
+  field({ name: 'productName', label: 'Product',  type: 'text',   default: '' }),
+  field({ name: 'qty',         label: 'Quantity', type: 'number', default: 0, required: true }),
+  field({ name: 'note',        label: 'Note',     type: 'text',   default: '' }),
 ]

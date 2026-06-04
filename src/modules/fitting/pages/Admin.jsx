@@ -13,11 +13,11 @@ import { computeStock, piecesFromWeight, weightFromPieces, avgDeviationPct } fro
 import { AVG_WEIGHT_TOLERANCE_PCT } from '../config'
 
 function ReceiveStock() {
-  const { components, receipts, production, adjustments, log } = useFitting()
+  const { components, receipts, production, adjustments, rejects, log } = useFitting()
   const { msg, show } = useToast()
   const stockMap = useMemo(
-    () => computeStock(components.list, receipts.list, production.list, adjustments.list),
-    [components.list, receipts.list, production.list, adjustments.list]
+    () => computeStock(components.list, receipts.list, production.list, adjustments.list, rejects.list),
+    [components.list, receipts.list, production.list, adjustments.list, rejects.list]
   )
   const sorted = [...components.list].sort((a, b) => a.name.localeCompare(b.name))
   const [componentId, setComponentId] = useState(sorted[0]?.id || '')
@@ -172,11 +172,11 @@ function ReceiveStock() {
 
 /** Physical stock-take: count actual stock; record the correction (delta). */
 function StockTake() {
-  const { components, receipts, production, adjustments, log } = useFitting()
+  const { components, receipts, production, adjustments, rejects, log } = useFitting()
   const { msg, show } = useToast()
   const stockMap = useMemo(
-    () => computeStock(components.list, receipts.list, production.list, adjustments.list),
-    [components.list, receipts.list, production.list, adjustments.list]
+    () => computeStock(components.list, receipts.list, production.list, adjustments.list, rejects.list),
+    [components.list, receipts.list, production.list, adjustments.list, rejects.list]
   )
   const sorted = [...components.list].sort((a, b) => a.name.localeCompare(b.name))
   const [componentId, setComponentId] = useState(sorted[0]?.id || '')

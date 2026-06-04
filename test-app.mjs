@@ -85,7 +85,7 @@ try {
   await page.locator('text=Shop Floor').click()
   await page.waitForSelector('text=Tap the product')
   await page.locator('button:has-text("UTM-1")').first().click()   // photo tile
-  await page.waitForSelector('text=Quantity assembled')
+  await page.waitForSelector('text=Good assembled')
   await page.fill('input[inputmode=numeric]', '10')
   await page.waitForSelector('text=40 used')
   await page.click('button:has-text("Save Production")')

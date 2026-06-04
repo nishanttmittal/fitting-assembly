@@ -62,14 +62,14 @@ export const DEFAULT_COMPONENTS = [
   { name: 'Nylon Bush 1 no. (PM)',         category: 'Nylon Bush', supplierName: 'DK Plastic / Dheeraj' },
   { name: 'Nylon Bush Sq (Synchro)',       category: 'Nylon Bush', supplierName: 'DK Plastic / Dheeraj' },
   { name: 'Nylon Bush Small (Synchro)',    category: 'Nylon Bush', supplierName: 'DK Plastic / Dheeraj' },
-  // Box (packing, pieces) — items-per-box is set per product in the recipe
-  { name: 'Box Pushback',     category: 'Box' },
-  { name: 'Box Tilting',      category: 'Box' },
-  { name: 'Box Synchro Big',  category: 'Box' },
-  { name: 'Box Synchro Smart', category: 'Box' },
-  { name: 'Box Torsion',      category: 'Box' },
-  { name: 'Box 4"',           category: 'Box' },
-  { name: 'Box 6"',           category: 'Box' },
+  // Box (packing, pieces) — packing:true so rejects don't consume a box
+  { name: 'Box Pushback',      category: 'Box', packing: true },
+  { name: 'Box Tilting',       category: 'Box', packing: true },
+  { name: 'Box Synchro Big',   category: 'Box', packing: true },
+  { name: 'Box Synchro Smart', category: 'Box', packing: true },
+  { name: 'Box Torsion',       category: 'Box', packing: true },
+  { name: 'Box 4"',            category: 'Box', packing: true },
+  { name: 'Box 6"',            category: 'Box', packing: true },
   // Rivet (by weight, grams)
   { name: 'Rivet 92mm',  category: 'Rivet', measureBy: 'weight', avgWeight: 36.4, weightUnit: 'g' },
   { name: 'Rivet 95mm',  category: 'Rivet', measureBy: 'weight', avgWeight: 37.8, weightUnit: 'g' },
@@ -91,6 +91,9 @@ export const KEYS = {
   receipts:    'receipts',
   production:  'production',
   adjustments: 'adjustments',
+  rejects:     'rejects',
+  repairs:     'repairs',
+  dispatch:    'dispatch',
   logs:        'logs',
   lastUsed:    'last_used',
 }

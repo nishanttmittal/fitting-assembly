@@ -7,7 +7,7 @@
  * warned but never blocks saving.
  */
 import { useMemo, useState } from 'react'
-import { Button, Card, FieldLabel, NumberStepper, SearchBar, useToast, Toast } from '../../../core/ui'
+import { Button, Card, FieldLabel, NumberInput, NumberStepper, SearchBar, useToast, Toast } from '../../../core/ui'
 import { todayStr, fmtNum, fmtDate } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
 import { QUICK_QTYS } from '../config'
@@ -15,7 +15,7 @@ import { computeStock, consumedFor, checkAvailability, recipeOf } from '../logic
 import ProductPhoto from '../components/ProductPhoto'
 
 export default function NewProduction() {
-  const { components, products, receipts, production, adjustments, log, lastUsed } = useFitting()
+  const { components, products, receipts, production, adjustments, rejects, log, lastUsed } = useFitting()
   const { msg, show } = useToast()
 
   const sortedProducts = useMemo(
@@ -26,15 +26,18 @@ export default function NewProduction() {
   const [date, setDate] = useState(todayStr())
   const [productId, setProductId] = useState(null)
   const [qty, setQty] = useState('')
+  const [reject, setReject] = useState('')
   const [search, setSearch] = useState('')
 
   const product = sortedProducts.find(p => p.id === productId)
   const stockMap = useMemo(
-    () => computeStock(components.list, receipts.list, production.list, adjustments.list),
-    [components.list, receipts.list, production.list, adjustments.list]
+    () => computeStock(components.list, receipts.list, production.list, adjustments.list, rejects.list),
+    [components.list, receipts.list, production.list, adjustments.list, rejects.list]
   )
   const n = Number(qty) || 0
-  const avail = product && n > 0 ? checkAvailability(product, n, components.list, stockMap) : null
+  const rej = Number(reject) || 0
+  const total = n + rej // both good and rejected pieces consumed materials
+  const avail = product && total > 0 ? checkAvailability(product, total, components.list, stockMap) : null
   const hasRecipe = recipeOf(product).length > 0
 
   const todays = production.list
@@ -44,17 +47,17 @@ export default function NewProduction() {
   const term = search.trim().toLowerCase()
   const tiles = sortedProducts.filter(p => !term || p.name.toLowerCase().includes(term))
 
-  const pick = (id) => { setProductId(id); setQty('') }
+  const pick = (id) => { setProductId(id); setQty(''); setReject('') }
 
   const save = () => {
     if (!product) return show('Pick a product first', 2000)
-    if (n <= 0) return show('Enter a quantity', 2000)
-    const consumed = consumedFor(product, n, components.list)
-    production.insert({ date, productId: product.id, productName: product.name, qty: n, consumed })
-    log('PRODUCE', `${product.name} × ${n} on ${fmtDate(date)}`)
+    if (total <= 0) return show('Enter a quantity', 2000)
+    const consumed = consumedFor(product, total, components.list) // good + reject both use materials
+    production.insert({ date, productId: product.id, productName: product.name, qty: n, reject: rej, consumed })
+    log('PRODUCE', `${product.name} × ${n}${rej ? ` (+${rej} reject)` : ''} on ${fmtDate(date)}`)
     lastUsed.set({ ...lastUsed.get(), productId: product.id })
     show(`Saved: ${product.name} × ${fmtNum(n)} ✓`)
-    setQty('')
+    setQty(''); setReject('')
   }
 
   return (
@@ -98,12 +101,18 @@ export default function NewProduction() {
           </div>
 
           <div>
-            <FieldLabel>Quantity assembled</FieldLabel>
+            <FieldLabel>Good assembled</FieldLabel>
             <div className="mt-1.5"><NumberStepper value={qty} onChange={setQty} quickAdds={QUICK_QTYS} /></div>
           </div>
 
-          {/* usage preview */}
-          {n > 0 && (
+          <div>
+            <FieldLabel>Rejected (defective) — optional</FieldLabel>
+            <NumberInput className="mt-1.5" placeholder="0" value={reject} onChange={e => setReject(e.target.value)} />
+            {rej > 0 && <p className="text-xs text-amber-600 mt-1">Rejected pieces also used materials — deducted from stock.</p>}
+          </div>
+
+          {/* usage preview (good + reject) */}
+          {total > 0 && (
             <div className={`rounded-2xl p-4 ${avail && !avail.ok ? 'bg-red-50 border border-red-200' : 'bg-slate-50 border border-slate-200'}`}>
               {!hasRecipe ? (
                 <p className="text-sm text-slate-500">No recipe set — saved as a production count only.</p>
@@ -147,7 +156,7 @@ export default function NewProduction() {
             {todays.map(p => (
               <div key={p.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
                 <span className="font-semibold text-slate-700">{p.productName}</span>
-                <span className="font-mono font-bold text-emerald-700">× {fmtNum(p.qty)}</span>
+                <span className="font-mono font-bold text-emerald-700">× {fmtNum(p.qty)}{p.reject > 0 && <span className="text-red-500 text-xs"> · {fmtNum(p.reject)} rej</span>}</span>
               </div>
             ))}
           </div>

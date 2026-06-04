@@ -17,17 +17,19 @@ import RoleChooser from './RoleChooser'
 
 const ROLE_KEY = 'fa:role'
 
-/** Slim top bar with the current role and a Switch button. */
+/** Slim top bar with the current role and an optional Switch button. */
 function RoleBar({ label, onSwitch }) {
   return (
     <div className="bg-slate-900 text-slate-300 px-4 py-2 flex items-center justify-between text-xs no-print">
       <span className="font-semibold tracking-wide uppercase">{label}</span>
-      <button onClick={onSwitch} className="flex items-center gap-1 text-slate-400 hover:text-white font-medium">
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4" />
-        </svg>
-        Switch
-      </button>
+      {onSwitch && (
+        <button onClick={onSwitch} className="flex items-center gap-1 text-slate-400 hover:text-white font-medium">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          Switch
+        </button>
+      )}
     </div>
   )
 }
@@ -79,14 +81,25 @@ export default function AppShell({ moduleId }) {
   const pick = (r) => { localStorage.setItem(ROLE_KEY, r); setRole(r) }
   const reset = () => { localStorage.removeItem(ROLE_KEY); setRole(null) }
 
+  // A dedicated shop-floor link (…/?floor or ?floor=1) locks the device to the
+  // floor interface — no chooser, no admin, no Switch. The plain link keeps the
+  // chooser (Shop Floor + Owner/Admin) for you.
+  const floorOnly = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('floor')
+
   return (
     <Provider>
-      {!role && <RoleChooser title={module.title} icon={module.icon} onPick={pick} />}
-      {role === 'floor' && <FloorView module={module} onSwitch={reset} />}
-      {role === 'admin' && (
-        <PasswordGate password={module.adminPassword} title="Admin Console — Login">
-          <AdminConsole module={module} onSwitch={reset} />
-        </PasswordGate>
+      {floorOnly ? (
+        <FloorView module={module} />
+      ) : (
+        <>
+          {!role && <RoleChooser title={module.title} icon={module.icon} onPick={pick} />}
+          {role === 'floor' && <FloorView module={module} onSwitch={reset} />}
+          {role === 'admin' && (
+            <PasswordGate password={module.adminPassword} title="Admin Console — Login">
+              <AdminConsole module={module} onSwitch={reset} />
+            </PasswordGate>
+          )}
+        </>
       )}
     </Provider>
   )
