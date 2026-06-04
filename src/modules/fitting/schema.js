@@ -29,6 +29,7 @@ import { todayStr } from '../../core/utils/format'
  */
 export const componentSchema = [
   field({ name: 'name',      label: 'Component', type: 'text',   default: '', required: true }),
+  field({ name: 'category',  label: 'Category',  type: 'text',   default: '' }),
   field({ name: 'unit',      label: 'Unit',      type: 'text',   default: 'pcs' }),
   field({ name: 'lowAt',     label: 'Low stock alert at', type: 'number', default: 0 }),
   // Reorder management: when stock falls to/under reorderLevel, the dashboard

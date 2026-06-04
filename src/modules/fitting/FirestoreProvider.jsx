@@ -16,7 +16,7 @@ import { db, paths, ensureSignedIn } from '../../core/db/firebase'
 import { makeNormalizer } from '../../core/schema/field'
 import { makeId } from '../../core/db/repository'
 import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema } from './schema'
-import { DEFAULT_PRODUCTS } from './config'
+import { DEFAULT_PRODUCTS, DEFAULT_COMPONENTS } from './config'
 import { lastUsedStore } from './data'
 import { FittingCtx } from './FittingContext'
 
@@ -113,7 +113,14 @@ export function FirestoreProvider({ children }) {
         })
       })
     }
-  }, [ready, products.list.length])
+    // Seed raw materials independently (idempotent ids).
+    if (components.list.length === 0) {
+      DEFAULT_COMPONENTS.forEach((c, i) => {
+        const id = `seed_c${i + 1}`
+        setDoc(paths.component(id), { id, order: i, createdAt: new Date().toISOString(), ...c })
+      })
+    }
+  }, [ready, products.list.length, components.list.length])
 
   if (!ready && timedOut) {
     return (

@@ -6,10 +6,12 @@
 import { createCollection, createSingleton, makeId } from '../../core/db/repository'
 import { makeNormalizer } from '../../core/schema/field'
 import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema } from './schema'
-import { KEYS, DEFAULT_PRODUCTS } from './config'
+import { KEYS, DEFAULT_PRODUCTS, DEFAULT_COMPONENTS } from './config'
 
 export const componentsRepo = createCollection(KEYS.components, {
-  seed: () => [],
+  seed: () => DEFAULT_COMPONENTS.map((c, i) => ({
+    id: makeId('c'), order: i, createdAt: new Date().toISOString(), ...c,
+  })),
   normalize: makeNormalizer(componentSchema),
 })
 

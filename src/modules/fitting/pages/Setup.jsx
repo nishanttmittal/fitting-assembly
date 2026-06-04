@@ -37,6 +37,7 @@ function ComponentsTab() {
   )
 
   const [name, setName] = useState('')
+  const [category, setCategory] = useState('')
   const [unit, setUnit] = useState('pcs')
   const [opening, setOpening] = useState('')
   const [lowAt, setLowAt] = useState('')
@@ -63,6 +64,40 @@ function ComponentsTab() {
     { value: 'number', label: 'Number (pieces)' },
     { value: 'weight', label: 'Weight' },
   ]
+  const categoryNames = [...new Set(components.list.map(c => c.category).filter(Boolean))].sort()
+  // Group components by category for the list ('Other' for uncategorised).
+  const grouped = {}
+  for (const c of components.list) { const k = c.category || 'Other'; (grouped[k] ||= []).push(c) }
+  const groupNames = Object.keys(grouped).sort((a, b) => (a === 'Other') - (b === 'Other') || a.localeCompare(b))
+  const renderRow = (c) => (
+    <div key={c.id} className="bg-slate-50 rounded-xl px-4 py-3">
+      {editId === c.id ? (
+        <EditComponentRow c={c} onCancel={() => setEditId(null)} onSave={saveEdit} />
+      ) : (
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-slate-700 flex items-center gap-1.5 flex-wrap">
+              {c.name} <span className="text-xs text-slate-400">({c.unit})</span>
+              <SourceBadge source={c.source} />
+              {c.measureBy === 'weight' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">⚖ {fmtDec(c.avgWeight)}{c.weightUnit || 'kg'}/pc</span>}
+              {stockMap[c.id]?.reorder && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">REORDER</span>}
+            </div>
+            <div className="text-xs text-slate-400">
+              stock {fmtNum(stockMap[c.id]?.stock ?? 0)} pcs
+              {c.measureBy === 'weight' && c.avgWeight > 0 ? ` (≈ ${fmtDec((stockMap[c.id]?.stock ?? 0) * c.avgWeight)} ${c.weightUnit || 'kg'})` : ''}
+              {' · low '}{fmtNum(c.lowAt)}{c.reorderLevel > 0 ? ` · reorder ${fmtNum(c.reorderLevel)}` : ''}
+              {c.unitCost > 0 ? ` · ₹${fmtNum(c.unitCost)}/pc` : ''}{c.supplierName ? ` · ${c.supplierName}` : ''}
+            </div>
+          </div>
+          <div className="flex gap-1 flex-shrink-0">
+            <button onClick={() => { setBulk(c); setBulkQty('1') }} className="text-violet-600 text-xs font-bold px-1.5" title="Add to all products">＋All</button>
+            <button onClick={() => setEditId(c.id)} className="text-blue-600 text-sm font-bold px-1.5">Edit</button>
+            <button onClick={() => del(c)} className="text-red-500 text-sm font-bold px-1.5">Del</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 
   // For weight materials the "opening" field is a weight → convert to pieces.
   const byWeight = measureBy === 'weight'
@@ -74,7 +109,7 @@ function ComponentsTab() {
     if (components.list.some(c => c.name.toLowerCase() === nm.toLowerCase())) return show('Already exists', 2000)
     if (byWeight && !(Number(avgWeight) > 0)) return show('Enter avg weight per piece', 2500)
     const row = components.insert({
-      name: nm, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim(),
+      name: nm, category: category.trim(), unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim(),
       measureBy, avgWeight: byWeight ? Number(avgWeight) || 0 : 0, weightUnit: weightUnit.trim() || 'kg',
       reorderLevel: Number(reorderLevel) || 0, leadTimeDays: Number(leadTime) || 0,
       supplierName: supplierName.trim(), supplierPhone: supplierPhone.trim(), unitCost: Number(unitCost) || 0,
@@ -88,7 +123,7 @@ function ComponentsTab() {
     }
     log('ADD_COMPONENT', `${nm} [${measureBy}]${openingPieces ? ` (opening ${openingPieces}pc)` : ''}`, 'admin')
     show('Component added ✓')
-    setName(''); setUnit('pcs'); setOpening(''); setLowAt(''); setSource('purchased'); setSourceApp('')
+    setName(''); setCategory(''); setUnit('pcs'); setOpening(''); setLowAt(''); setSource('purchased'); setSourceApp('')
     setMeasureBy('number'); setAvgWeight(''); setWeightUnit('kg')
     setReorderLevel(''); setLeadTime(''); setSupplierName(''); setSupplierPhone(''); setUnitCost('')
   }
@@ -130,6 +165,12 @@ function ComponentsTab() {
       <Card className="p-5 space-y-3">
         <FieldLabel>Add Component</FieldLabel>
         <TextInput placeholder="Component name (e.g. M8 Bolt)" value={name} onChange={e => setName(e.target.value)} />
+        <div>
+          <FieldLabel>Category</FieldLabel>
+          <input list="fa-cats" placeholder="e.g. Nylon Bush, Box, Rivet…" value={category} onChange={e => setCategory(e.target.value)}
+            className="mt-1 w-full border-2 border-slate-300 rounded-2xl px-4 py-3 text-base font-semibold focus:outline-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500" />
+          <datalist id="fa-cats">{categoryNames.map(c => <option key={c} value={c} />)}</datalist>
+        </div>
         <div>
           <FieldLabel>Measured by</FieldLabel>
           <Select className="mt-1" value={measureBy} onChange={e => setMeasureBy(e.target.value)} options={MEASURE_OPTS} />
@@ -178,34 +219,13 @@ function ComponentsTab() {
         {components.list.length === 0 ? (
           <p className="text-sm text-slate-400 mt-3">None yet — add your first component above.</p>
         ) : (
-          <div className="mt-3 space-y-2">
-            {[...components.list].sort((a, b) => a.name.localeCompare(b.name)).map(c => (
-              <div key={c.id} className="bg-slate-50 rounded-xl px-4 py-3">
-                {editId === c.id ? (
-                  <EditComponentRow c={c} onCancel={() => setEditId(null)} onSave={saveEdit} />
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-slate-700 flex items-center gap-1.5">
-                        {c.name} <span className="text-xs text-slate-400">({c.unit})</span>
-                        <SourceBadge source={c.source} />
-                        {c.measureBy === 'weight' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">⚖ {fmtDec(c.avgWeight)}{c.weightUnit || 'kg'}/pc</span>}
-                        {stockMap[c.id]?.reorder && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">REORDER</span>}
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        stock {fmtNum(stockMap[c.id]?.stock ?? 0)} pcs
-                        {c.measureBy === 'weight' && c.avgWeight > 0 ? ` (≈ ${fmtDec((stockMap[c.id]?.stock ?? 0) * c.avgWeight)} ${c.weightUnit || 'kg'})` : ''}
-                        {' · low '}{fmtNum(c.lowAt)}{c.reorderLevel > 0 ? ` · reorder ${fmtNum(c.reorderLevel)}` : ''}
-                        {c.unitCost > 0 ? ` · ₹${fmtNum(c.unitCost)}/pc` : ''}{c.supplierName ? ` · ${c.supplierName}` : ''}
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={() => { setBulk(c); setBulkQty('1') }} className="text-violet-600 text-xs font-bold px-1.5" title="Add to all products">＋All</button>
-                      <button onClick={() => setEditId(c.id)} className="text-blue-600 text-sm font-bold px-1.5">Edit</button>
-                      <button onClick={() => del(c)} className="text-red-500 text-sm font-bold px-1.5">Del</button>
-                    </div>
-                  </div>
-                )}
+          <div className="mt-3 space-y-4">
+            {groupNames.map(g => (
+              <div key={g}>
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">{g} ({grouped[g].length})</div>
+                <div className="space-y-2">
+                  {[...grouped[g]].sort((a, b) => a.name.localeCompare(b.name)).map(renderRow)}
+                </div>
               </div>
             ))}
           </div>
@@ -235,6 +255,7 @@ function ComponentsTab() {
 
 function EditComponentRow({ c, onCancel, onSave }) {
   const [name, setName] = useState(c.name)
+  const [category, setCategory] = useState(c.category || '')
   const [unit, setUnit] = useState(c.unit)
   const [lowAt, setLowAt] = useState(String(c.lowAt ?? 0))
   const [source, setSource] = useState(c.source || 'purchased')
@@ -260,9 +281,10 @@ function EditComponentRow({ c, onCancel, onSave }) {
     <div className="space-y-2">
       <TextInput value={name} onChange={e => setName(e.target.value)} />
       <div className="grid grid-cols-2 gap-2">
+        <div><FieldLabel>Category</FieldLabel><input list="fa-cats" className="mt-1 w-full border-2 border-slate-300 rounded-2xl px-4 py-3 text-base font-semibold focus:outline-none focus:ring-4 focus:ring-blue-200" value={category} onChange={e => setCategory(e.target.value)} /></div>
         <div><FieldLabel>Unit</FieldLabel><TextInput className="mt-1" value={unit} onChange={e => setUnit(e.target.value)} /></div>
-        <div><FieldLabel>Low at (pcs)</FieldLabel><NumberInput className="mt-1" value={lowAt} onChange={e => setLowAt(e.target.value)} /></div>
       </div>
+      <div><FieldLabel>Low at (pcs)</FieldLabel><NumberInput className="mt-1" value={lowAt} onChange={e => setLowAt(e.target.value)} /></div>
       <div className="grid grid-cols-2 gap-2">
         <div><FieldLabel>Reorder level</FieldLabel><NumberInput className="mt-1" value={reorderLevel} onChange={e => setReorderLevel(e.target.value)} /></div>
         <div><FieldLabel>Lead time (days)</FieldLabel><NumberInput className="mt-1" value={leadTime} onChange={e => setLeadTime(e.target.value)} /></div>
@@ -286,7 +308,7 @@ function EditComponentRow({ c, onCancel, onSave }) {
       <div className="flex gap-2">
         <Button size="sm" variant="ghost" className="flex-1" onClick={onCancel}>Cancel</Button>
         <Button size="sm" variant="success" className="flex-1" onClick={() => onSave(c, {
-          name: name.trim() || c.name, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim(),
+          name: name.trim() || c.name, category: category.trim(), unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim(),
           measureBy, avgWeight: measureBy === 'weight' ? Number(avgWeight) || 0 : 0, weightUnit: weightUnit.trim() || 'kg',
           reorderLevel: Number(reorderLevel) || 0, leadTimeDays: Number(leadTime) || 0,
           supplierName: supplierName.trim(), supplierPhone: supplierPhone.trim(), unitCost: Number(unitCost) || 0,
@@ -365,7 +387,8 @@ function ProductsTab() {
                   ? <span className="text-amber-600">No recipe set</span>
                   : (p.recipe || []).map((r, i) => {
                       const c = components.list.find(c => c.id === r.componentId)
-                      return <span key={i} className="inline-block bg-slate-100 rounded-lg px-2 py-1 mr-1.5 mb-1.5 text-xs font-semibold">{c?.name || '??'} × {fmtNum(r.qty)}</span>
+                      const label = r.perBox > 0 ? `${c?.name || '??'} · 1 / ${fmtNum(r.perBox)} box` : `${c?.name || '??'} × ${fmtDec(r.qty)}`
+                      return <span key={i} className="inline-block bg-slate-100 rounded-lg px-2 py-1 mr-1.5 mb-1.5 text-xs font-semibold">{label}</span>
                     })}
               </div>
             </div>
@@ -384,8 +407,15 @@ function ProductsTab() {
  */
 function RecipeEditor({ product, components, onCancel, onSave }) {
   const [name, setName] = useState(product.name)
+  // Recipe state: id → { mode:'pc'|'box', val }. 'pc' = qty per finished piece;
+  // 'box' = how many pieces ONE box packs (qty becomes 1/val box per piece).
   const [recipe, setRecipe] = useState(() => {
-    const m = {}; (product.recipe || []).forEach(r => { if (r.componentId) m[r.componentId] = r.qty }); return m
+    const m = {}
+    ;(product.recipe || []).forEach(r => {
+      if (!r.componentId) return
+      m[r.componentId] = Number(r.perBox) > 0 ? { mode: 'box', val: Number(r.perBox) } : { mode: 'pc', val: Number(r.qty) || 0 }
+    })
+    return m
   })
   const [q, setQ] = useState('')
   const [photo, setPhoto] = useState(product.photo || '')
@@ -394,9 +424,10 @@ function RecipeEditor({ product, components, onCancel, onSave }) {
   const fileRef = useRef(null)
 
   const inRecipe = (id) => Object.prototype.hasOwnProperty.call(recipe, id)
-  const addItem = (id) => setRecipe(r => ({ ...r, [id]: r[id] || 1 }))
+  const addItem = (id) => setRecipe(r => ({ ...r, [id]: r[id] || { mode: 'pc', val: 1 } }))
   const removeItem = (id) => setRecipe(r => { const n = { ...r }; delete n[id]; return n })
-  const setQty = (id, v) => setRecipe(r => ({ ...r, [id]: v }))
+  const setVal = (id, v) => setRecipe(r => ({ ...r, [id]: { ...r[id], val: v } }))
+  const toggleMode = (id) => setRecipe(r => ({ ...r, [id]: { ...r[id], mode: r[id].mode === 'box' ? 'pc' : 'box' } }))
 
   const byName = (a, b) => a.name.localeCompare(b.name)
   const selected = components.filter(c => inRecipe(c.id)).sort(byName)
@@ -406,8 +437,12 @@ function RecipeEditor({ product, components, onCancel, onSave }) {
     .filter(c => !term || c.name.toLowerCase().includes(term))
     .sort(byName)
 
-  // Live material cost per piece from the current recipe + component unit costs.
-  const builtRecipe = Object.entries(recipe).filter(([, v]) => Number(v) > 0).map(([componentId, v]) => ({ componentId, qty: Number(v) }))
+  // Convert UI state → stored recipe items (qty is always per finished piece).
+  const builtRecipe = Object.entries(recipe)
+    .filter(([, v]) => Number(v.val) > 0)
+    .map(([componentId, v]) => v.mode === 'box'
+      ? { componentId, qty: 1 / Number(v.val), perBox: Number(v.val) }
+      : { componentId, qty: Number(v.val) })
   const matCost = materialCostOf({ recipe: builtRecipe }, components)
 
   const onPickPhoto = async (e) => {
@@ -463,14 +498,25 @@ function RecipeEditor({ product, components, onCancel, onSave }) {
             <p className="text-xs text-slate-400">None yet — tap ＋ on a material below to add it.</p>
           ) : (
             <div className="space-y-2">
-              {selected.map(c => (
-                <div key={c.id} className="flex items-center gap-2 bg-emerald-50 rounded-xl px-3 py-2">
-                  <span className="flex-1 font-semibold text-slate-700 text-sm">{c.name} <span className="text-xs text-slate-400">({c.unit})</span></span>
-                  <NumberInput className="w-20 text-center !py-2" value={recipe[c.id]} onChange={e => setQty(c.id, e.target.value)} />
-                  <span className="text-xs text-slate-400">/pc</span>
-                  <button onClick={() => removeItem(c.id)} className="w-9 h-9 rounded-xl bg-red-50 text-red-500 font-bold flex-shrink-0">✕</button>
-                </div>
-              ))}
+              {selected.map(c => {
+                const item = recipe[c.id]
+                return (
+                  <div key={c.id} className="bg-emerald-50 rounded-xl px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1 font-semibold text-slate-700 text-sm">{c.name}</span>
+                      <NumberInput className="w-16 text-center !py-2" value={item.val} onChange={e => setVal(c.id, e.target.value)} />
+                      <button onClick={() => toggleMode(c.id)} title="Switch per-piece / items-per-box"
+                        className={`text-xs font-bold px-2 py-2 rounded-lg w-16 border ${item.mode === 'box' ? 'bg-amber-100 border-amber-200 text-amber-700' : 'bg-white border-slate-200 text-slate-600'}`}>
+                        {item.mode === 'box' ? '/box' : '/pc'}
+                      </button>
+                      <button onClick={() => removeItem(c.id)} className="w-9 h-9 rounded-xl bg-red-50 text-red-500 font-bold flex-shrink-0">✕</button>
+                    </div>
+                    {item.mode === 'box' && Number(item.val) > 0 && (
+                      <div className="text-[11px] text-amber-700 mt-1">1 box packs {fmtNum(item.val)} pcs · so {fmtDec(1 / Number(item.val))} box per piece</div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
 

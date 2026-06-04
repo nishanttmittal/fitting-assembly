@@ -58,7 +58,8 @@ try {
 
   console.log('\n[3b] Add M8 Bolt to ALL products (＋All)')
   await page.click('button:has-text("Components")')              // Components tab
-  await page.locator('button:has-text("All")').first().click()  // ＋All on M8 Bolt
+  await page.locator('div.justify-between', { hasText: 'M8 Bolt' }).first()
+    .locator('button:has-text("All")').click()                  // ＋All on the M8 Bolt row
   await page.click('button:has-text("Add to")')                 // confirm (qty defaults to 1)
   await page.click('button:has-text("Products & Recipes")')
   await page.waitForSelector('text=M8 Bolt × 1')                // appears on other products
@@ -69,6 +70,10 @@ try {
   await page.locator('button:has-text("Receive stock, backup")').click() // the Admin card
   await page.waitForSelector('text=Incoming Material')
   assert(await page.locator('text=Physical Stock-take').isVisible(), 'Stock-take tool present in Admin')
+  // Select M8 Bolt (many materials are seeded, so it isn't the default).
+  const isel = page.locator('select').first()
+  const mval = await isel.locator('option', { hasText: 'M8 Bolt' }).first().getAttribute('value')
+  await isel.selectOption(mval)
   await page.click('button:has-text("Manufactured")')
   await page.fill('input[placeholder="0"]', '20')
   await page.click('button:has-text("Add to Stock")')

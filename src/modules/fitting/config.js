@@ -51,8 +51,38 @@ export const DEFAULT_PRODUCTS = [
   'UCAP-106 Foot Ring',
 ]
 
-/** No components by default — added by admin in Setup. */
-export const DEFAULT_COMPONENTS = []
+/**
+ * Raw-material master list, grouped by category. Pieces unless measureBy:
+ * 'weight' (then avgWeight is per piece in weightUnit). Stock/reorder/cost are
+ * filled in-app. Add more in admin → Components.
+ */
+export const DEFAULT_COMPONENTS = [
+  // Nylon Bush (pieces) — supplier DK Plastic / Dheeraj
+  { name: 'Nylon Bush 3 no. (TM/Synchro)', category: 'Nylon Bush', supplierName: 'DK Plastic / Dheeraj' },
+  { name: 'Nylon Bush 1 no. (PM)',         category: 'Nylon Bush', supplierName: 'DK Plastic / Dheeraj' },
+  { name: 'Nylon Bush Sq (Synchro)',       category: 'Nylon Bush', supplierName: 'DK Plastic / Dheeraj' },
+  { name: 'Nylon Bush Small (Synchro)',    category: 'Nylon Bush', supplierName: 'DK Plastic / Dheeraj' },
+  // Box (packing, pieces) — items-per-box is set per product in the recipe
+  { name: 'Box Pushback',     category: 'Box' },
+  { name: 'Box Tilting',      category: 'Box' },
+  { name: 'Box Synchro Big',  category: 'Box' },
+  { name: 'Box Synchro Smart', category: 'Box' },
+  { name: 'Box Torsion',      category: 'Box' },
+  { name: 'Box 4"',           category: 'Box' },
+  { name: 'Box 6"',           category: 'Box' },
+  // Rivet (by weight, grams)
+  { name: 'Rivet 92mm',  category: 'Rivet', measureBy: 'weight', avgWeight: 36.4, weightUnit: 'g' },
+  { name: 'Rivet 95mm',  category: 'Rivet', measureBy: 'weight', avgWeight: 37.8, weightUnit: 'g' },
+  { name: 'Rivet 105mm', category: 'Rivet', measureBy: 'weight', avgWeight: 42,   weightUnit: 'g' },
+  // Spring (pieces)
+  { name: 'Spring Tilting',       category: 'Spring' },
+  { name: 'Spring Pushback',      category: 'Spring' },
+  { name: 'Spring Big Synchro',   category: 'Spring' },
+  { name: 'Spring Smart Synchro', category: 'Spring' },
+  // Carriage Bolt (by weight, grams)
+  { name: '4" Bolt (Synchro/PM)', category: 'Carriage Bolt', measureBy: 'weight', avgWeight: 53.8, weightUnit: 'g' },
+  { name: '4.25" Bolt (TM)',      category: 'Carriage Bolt', measureBy: 'weight', avgWeight: 59.6, weightUnit: 'g' },
+]
 
 /** Storage keys owned by this module. */
 export const KEYS = {

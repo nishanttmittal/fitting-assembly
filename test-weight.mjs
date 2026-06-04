@@ -38,7 +38,10 @@ try {
   await page.click('text=Home')
   await page.locator('button:has-text("Receive stock, backup")').click()
   await page.waitForSelector('text=Incoming Material')
-  // Steel Strip is the only component → form opens in weight mode.
+  // Select Steel Strip in the Incoming dropdown (many materials are seeded).
+  const sel = page.locator('select').first()
+  const val = await sel.locator('option', { hasText: 'Steel Strip' }).first().getAttribute('value')
+  await sel.selectOption(val)
   await page.fill('input[placeholder="0"]', '50')
   await page.waitForSelector('text=100 pcs')
   assert(true, 'weight→pieces preview: 50 kg = 100 pcs')
