@@ -134,8 +134,15 @@ export const productionSchema = [
   field({ name: 'qty',         label: 'Good',     type: 'number', default: 0, required: true }),
   // Rejected finished pieces (failed QC). They still consumed their materials,
   // so `consumed` is the snapshot for (good + reject).
-  field({ name: 'reject',      label: 'Rejected', type: 'number', default: 0 }),
-  field({ name: 'consumed',    label: 'Consumed', type: 'list',   default: () => [] }),
+  field({ name: 'reject',      label: 'Rejected',      type: 'number', default: 0 }),
+  field({ name: 'rejectReason', label: 'Reject reason', type: 'text',   default: '' }),
+  field({ name: 'remarks',     label: 'Remarks',       type: 'text',   default: '' }),
+  field({ name: 'consumed',    label: 'Consumed',      type: 'list',   default: () => [] }),
+]
+
+/** A reject reason (admin-managed list shown to the floor as a dropdown). */
+export const rejectReasonSchema = [
+  field({ name: 'name', label: 'Reason', type: 'text', default: '', required: true }),
 ]
 
 /**

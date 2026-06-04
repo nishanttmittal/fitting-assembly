@@ -22,6 +22,18 @@ export const QUICK_QTYS = [5, 10, 25, 50, 100, 200]
  */
 export const AVG_WEIGHT_TOLERANCE_PCT = 1
 
+/** Default reject reasons (admin can add/remove in the console). */
+export const DEFAULT_REJECT_REASONS = [
+  'Welding issue',
+  'Fitting issue',
+  'Hole mismatch',
+  'Powder defect',
+  'Missing hardware',
+]
+
+/** Shop floor may back-date entries up to this many days (admin: any date). */
+export const FLOOR_BACKDATE_DAYS = 2
+
 /**
  * The final products produced by the fitting department (UNICO chair
  * mechanisms & base parts). The code (first token of the name, e.g. UTM-1) is
@@ -30,6 +42,7 @@ export const AVG_WEIGHT_TOLERANCE_PCT = 1
  */
 export const DEFAULT_PRODUCTS = [
   'UTM-1 Tilting Mechanism',
+  'UTM-1H Tilting Mechanism (Heavy)',
   'UTM-2 Tilting Mechanism with Channel',
   'UTM-3 Small Tilting Mechanism',
   'UPM-1 Lever Plate',
@@ -91,9 +104,10 @@ export const KEYS = {
   receipts:    'receipts',
   production:  'production',
   adjustments: 'adjustments',
-  rejects:     'rejects',
-  repairs:     'repairs',
-  dispatch:    'dispatch',
-  logs:        'logs',
+  rejects:       'rejects',
+  repairs:       'repairs',
+  dispatch:      'dispatch',
+  rejectReasons: 'reject_reasons',
+  logs:          'logs',
   lastUsed:    'last_used',
 }

@@ -15,7 +15,7 @@ import { createContext, useContext, useCallback } from 'react'
 import { useCollection } from '../../core/hooks/useCollection'
 import {
   componentsRepo, productsRepo, receiptsRepo, productionRepo, adjustmentsRepo, rejectsRepo,
-  repairsRepo, dispatchRepo, logsRepo, lastUsedStore,
+  repairsRepo, dispatchRepo, rejectReasonsRepo, logsRepo, lastUsedStore,
 } from './data'
 import { isFirebaseConfigured } from '../../core/db/firebaseConfig'
 import { FirestoreProvider } from './FirestoreProvider'
@@ -40,6 +40,7 @@ export function LocalFittingProvider({ children }) {
   const rejects     = useCollection(rejectsRepo)
   const repairs     = useCollection(repairsRepo)
   const dispatch    = useCollection(dispatchRepo)
+  const rejectReasons = useCollection(rejectReasonsRepo)
   const logs        = useCollection(logsRepo)
 
   const log = useCallback((action, detail, by = 'user') => {
@@ -47,7 +48,7 @@ export function LocalFittingProvider({ children }) {
   }, [logs])
 
   const value = {
-    components, products, receipts, production, adjustments, rejects, repairs, dispatch, logs,
+    components, products, receipts, production, adjustments, rejects, repairs, dispatch, rejectReasons, logs,
     lastUsed: lastUsedStore,
     log,
     cloud: { connected: false, error: '' }, // local mode

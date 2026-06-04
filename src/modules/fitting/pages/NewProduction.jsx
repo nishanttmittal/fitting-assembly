@@ -1,21 +1,21 @@
 /**
- * Enter Production — the floor worker's main screen, kept dead-simple:
- *   1. Date (defaults to today)
- *   2. Tap the product's PHOTO tile
- *   3. Enter quantity → Save
- * Saving snapshots the components consumed and deducts stock. A shortage is
- * warned but never blocks saving.
+ * Enter Production — the floor worker's screen. Deliberately minimal (fewer
+ * taps = fewer mistakes) and shows NO stock to the worker:
+ *   1. Date — defaults to today; floor may back-date only a few days, admin any date
+ *   2. Tap the product's PHOTO
+ *   3. Good qty + Rejected qty (+ reason) + optional remarks → big SAVE
+ * Saving snapshots the components consumed (good + reject) and deducts stock.
  */
 import { useMemo, useState } from 'react'
-import { Button, Card, FieldLabel, NumberInput, NumberStepper, SearchBar, useToast, Toast } from '../../../core/ui'
-import { todayStr, fmtNum, fmtDate } from '../../../core/utils/format'
+import { Button, Card, FieldLabel, NumberInput, NumberStepper, SearchBar, Select, TextInput, useToast, Toast } from '../../../core/ui'
+import { todayStr, daysAgoStr, fmtNum, fmtDate } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
-import { QUICK_QTYS } from '../config'
-import { computeStock, consumedFor, checkAvailability, recipeOf } from '../logic/stock'
+import { QUICK_QTYS, FLOOR_BACKDATE_DAYS } from '../config'
+import { consumedFor } from '../logic/stock'
 import ProductPhoto from '../components/ProductPhoto'
 
-export default function NewProduction() {
-  const { components, products, receipts, production, adjustments, rejects, log, lastUsed } = useFitting()
+export default function NewProduction({ floor = false }) {
+  const { products, components, production, rejectReasons, log, lastUsed } = useFitting()
   const { msg, show } = useToast()
 
   const sortedProducts = useMemo(
@@ -27,37 +27,50 @@ export default function NewProduction() {
   const [productId, setProductId] = useState(null)
   const [qty, setQty] = useState('')
   const [reject, setReject] = useState('')
+  const [reason, setReason] = useState('')
+  const [remarks, setRemarks] = useState('')
   const [search, setSearch] = useState('')
+  const [confirming, setConfirming] = useState(false)
 
   const product = sortedProducts.find(p => p.id === productId)
-  const stockMap = useMemo(
-    () => computeStock(components.list, receipts.list, production.list, adjustments.list, rejects.list),
-    [components.list, receipts.list, production.list, adjustments.list, rejects.list]
-  )
   const n = Number(qty) || 0
   const rej = Number(reject) || 0
-  const total = n + rej // both good and rejected pieces consumed materials
-  const avail = product && total > 0 ? checkAvailability(product, total, components.list, stockMap) : null
-  const hasRecipe = recipeOf(product).length > 0
+  const total = n + rej
+
+  const reasonOpts = [{ value: '', label: '— select reason —' }, ...rejectReasons.list.map(r => ({ value: r.name, label: r.name }))]
 
   const todays = production.list
     .filter(p => p.date === date)
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 
+  // Duplicate-entry guard: how much was already entered today for this product.
+  const alreadyToday = product
+    ? todays.filter(p => p.productId === product.id).reduce((s, p) => s + (Number(p.qty) || 0), 0)
+    : 0
+
   const term = search.trim().toLowerCase()
   const tiles = sortedProducts.filter(p => !term || p.name.toLowerCase().includes(term))
 
-  const pick = (id) => { setProductId(id); setQty(''); setReject('') }
+  const pick = (id) => { setProductId(id); setQty(''); setReject(''); setReason(''); setRemarks('') }
 
-  const save = () => {
+  // Validate, then ask for confirmation (mistake-proofing).
+  const requestSave = () => {
     if (!product) return show('Pick a product first', 2000)
     if (total <= 0) return show('Enter a quantity', 2000)
-    const consumed = consumedFor(product, total, components.list) // good + reject both use materials
-    production.insert({ date, productId: product.id, productName: product.name, qty: n, reject: rej, consumed })
-    log('PRODUCE', `${product.name} × ${n}${rej ? ` (+${rej} reject)` : ''} on ${fmtDate(date)}`)
+    setConfirming(true)
+  }
+
+  const doSave = () => {
+    setConfirming(false)
+    const consumed = consumedFor(product, total, components.list) // good + reject use materials
+    production.insert({
+      date, productId: product.id, productName: product.name,
+      qty: n, reject: rej, rejectReason: rej > 0 ? reason : '', remarks: remarks.trim(), consumed,
+    })
+    log('PRODUCE', `${product.name} × ${n}${rej ? ` (+${rej} reject${reason ? ' · ' + reason : ''})` : ''} on ${fmtDate(date)}`, floor ? 'floor' : 'admin')
     lastUsed.set({ ...lastUsed.get(), productId: product.id })
     show(`Saved: ${product.name} × ${fmtNum(n)} ✓`)
-    setQty(''); setReject('')
+    setQty(''); setReject(''); setReason(''); setRemarks('')
   }
 
   return (
@@ -68,82 +81,87 @@ export default function NewProduction() {
       <Card className="p-4">
         <FieldLabel>Date</FieldLabel>
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          min={floor ? daysAgoStr(FLOOR_BACKDATE_DAYS) : undefined} max={floor ? todayStr() : undefined}
           className="mt-1.5 w-full border-2 border-slate-300 rounded-2xl px-4 py-3 text-base font-semibold focus:outline-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500" />
+        {floor && <p className="text-xs text-slate-400 mt-1">Today by default. Older dates: ask admin.</p>}
       </Card>
 
-      {/* 2. Pick product (photo tiles) OR 3. enter qty for the picked one */}
+      {/* 2. Pick product OR 3. enter for the picked one */}
       {!product ? (
         <Card className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <FieldLabel>Tap the product</FieldLabel>
-          </div>
+          <FieldLabel>Tap the product</FieldLabel>
           {sortedProducts.length > 6 && <SearchBar value={search} onChange={setSearch} placeholder="Search product…" />}
           <div className="grid grid-cols-2 gap-3">
             {tiles.map(p => (
               <button key={p.id} onClick={() => pick(p.id)}
                 className="bg-white border-2 border-slate-200 rounded-2xl p-2 flex flex-col items-center gap-1.5 active:scale-95 transition-transform hover:border-blue-300">
-                <ProductPhoto product={p} className="w-full h-24" />
-                <span className="text-xs font-bold text-slate-700 text-center leading-tight line-clamp-2">{p.name}</span>
+                <ProductPhoto product={p} className="w-full h-28" />
+                <span className="text-sm font-bold text-slate-700 text-center leading-tight line-clamp-2">{p.name}</span>
               </button>
             ))}
-            {tiles.length === 0 && <p className="text-sm text-slate-400 col-span-2">No products. Add them in admin.</p>}
+            {tiles.length === 0 && <p className="text-sm text-slate-400 col-span-2">No products.</p>}
           </div>
         </Card>
       ) : (
         <Card className="p-5 space-y-4">
-          {/* selected product header */}
+          {/* selected product */}
           <div className="flex items-center gap-3">
-            <ProductPhoto product={product} className="w-16 h-16 flex-shrink-0 border border-slate-200" />
+            <ProductPhoto product={product} className="w-20 h-20 flex-shrink-0 border border-slate-200" />
             <div className="flex-1">
-              <div className="font-bold text-slate-800 leading-tight">{product.name}</div>
-              <button onClick={() => { setProductId(null); setQty('') }} className="text-sm text-blue-600 font-semibold mt-0.5">← Change product</button>
+              <div className="font-bold text-slate-800 text-lg leading-tight">{product.name}</div>
+              <button onClick={() => pick(null)} className="text-sm text-blue-600 font-semibold mt-1">← Change product</button>
             </div>
           </div>
 
+          {alreadyToday > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 font-semibold">
+              ⚠ Already entered <b>{fmtNum(alreadyToday)} pcs</b> for this product on {fmtDate(date)}. Only add MORE if this is a new batch.
+            </div>
+          )}
+
           <div>
-            <FieldLabel>Good assembled</FieldLabel>
+            <FieldLabel>Good Qty</FieldLabel>
             <div className="mt-1.5"><NumberStepper value={qty} onChange={setQty} quickAdds={QUICK_QTYS} /></div>
           </div>
 
           <div>
-            <FieldLabel>Rejected (defective) — optional</FieldLabel>
+            <FieldLabel>Rejected Qty</FieldLabel>
             <NumberInput className="mt-1.5" placeholder="0" value={reject} onChange={e => setReject(e.target.value)} />
-            {rej > 0 && <p className="text-xs text-amber-600 mt-1">Rejected pieces also used materials — deducted from stock.</p>}
           </div>
 
-          {/* usage preview (good + reject) */}
-          {total > 0 && (
-            <div className={`rounded-2xl p-4 ${avail && !avail.ok ? 'bg-red-50 border border-red-200' : 'bg-slate-50 border border-slate-200'}`}>
-              {!hasRecipe ? (
-                <p className="text-sm text-slate-500">No recipe set — saved as a production count only.</p>
-              ) : (
-                <>
-                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Components used</div>
-                  <div className="space-y-1.5">
-                    {avail.need.map(item => {
-                      const have = stockMap[item.componentId]?.stock ?? 0
-                      const short = item.qty > have
-                      return (
-                        <div key={item.componentId} className="flex items-center justify-between text-sm">
-                          <span className="font-semibold text-slate-700">{item.componentName}</span>
-                          <span className={short ? 'text-red-600 font-bold' : 'text-slate-600'}>{fmtNum(item.qty)} used · {fmtNum(have)} in stock</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  {avail && !avail.ok && (
-                    <div className="mt-3 text-sm font-bold text-red-600">⚠ Short on {avail.short.length} component{avail.short.length > 1 ? 's' : ''}. You can still save.</div>
-                  )}
-                </>
-              )}
+          {rej > 0 && (
+            <div>
+              <FieldLabel>Reject reason</FieldLabel>
+              <Select className="mt-1.5" value={reason} onChange={e => setReason(e.target.value)} options={reasonOpts} />
             </div>
           )}
 
-          <Button variant="success" size="lg" className="w-full" onClick={save}>Save Production</Button>
+          <div>
+            <FieldLabel>Remarks (optional)</FieldLabel>
+            <TextInput className="mt-1.5" placeholder="Any note…" value={remarks} onChange={e => setRemarks(e.target.value)} />
+          </div>
+
+          <Button variant="success" size="lg" className="w-full text-lg py-5" onClick={requestSave}>SAVE</Button>
         </Card>
       )}
 
-      {/* Today's entries */}
+      {/* Confirmation popup (mistake-proofing) */}
+      {confirming && product && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-5" onClick={() => setConfirming(false)}>
+          <Card className="p-6 w-full max-w-sm text-center space-y-4" onClick={e => e.stopPropagation()}>
+            <ProductPhoto product={product} className="w-24 h-24 mx-auto border border-slate-200" />
+            <div className="text-lg font-bold text-slate-800">Save this entry?</div>
+            <div className="text-2xl font-bold text-emerald-600">{fmtNum(n)} good{rej > 0 ? <span className="text-red-500"> · {fmtNum(rej)} rejected</span> : null}</div>
+            <div className="text-sm font-semibold text-slate-600">{product.name}<br />{fmtDate(date)}</div>
+            <div className="flex gap-3 pt-1">
+              <Button variant="ghost" className="flex-1" onClick={() => setConfirming(false)}>Cancel</Button>
+              <Button variant="success" className="flex-1" onClick={doSave}>Yes, Save</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Today's entries (view only) */}
       <Card className="p-5">
         <div className="flex items-center justify-between mb-3">
           <FieldLabel>Entered for {fmtDate(date)}</FieldLabel>

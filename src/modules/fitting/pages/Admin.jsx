@@ -228,8 +228,41 @@ function StockTake() {
   )
 }
 
+/** Admin-managed list of reject reasons shown to the floor as a dropdown. */
+function RejectReasons() {
+  const { rejectReasons, log } = useFitting()
+  const { msg, show } = useToast()
+  const [name, setName] = useState('')
+  const add = () => {
+    const nm = name.trim()
+    if (!nm) return show('Enter a reason', 2000)
+    if (rejectReasons.list.some(r => r.name.toLowerCase() === nm.toLowerCase())) return show('Already exists', 2000)
+    rejectReasons.insert({ name: nm, order: rejectReasons.list.length })
+    log('ADD_REASON', nm, 'admin'); show('Added ✓'); setName('')
+  }
+  const del = (r) => { rejectReasons.remove(r.id); log('DEL_REASON', r.name, 'admin') }
+  return (
+    <Card className="p-5 space-y-3">
+      <Toast msg={msg} />
+      <FieldLabel>Reject Reasons (floor dropdown)</FieldLabel>
+      <div className="flex gap-2">
+        <TextInput placeholder="New reason" value={name} onChange={e => setName(e.target.value)} />
+        <Button variant="primary" onClick={add}>Add</Button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {rejectReasons.list.map(r => (
+          <span key={r.id} className="inline-flex items-center gap-1.5 bg-slate-100 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700">
+            {r.name}
+            <button onClick={() => del(r)} className="text-red-500 font-bold">✕</button>
+          </span>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 function DataTools() {
-  const { components, products, receipts, production, adjustments, logs, log } = useFitting()
+  const { components, products, receipts, production, adjustments, rejects, repairs, dispatch, rejectReasons, logs, log } = useFitting()
   const { msg, show } = useToast()
   const fileRef = useRef(null)
 
@@ -238,7 +271,8 @@ function DataTools() {
       app: 'fitting', exportedAt: new Date().toISOString(),
       components: components.list, products: products.list,
       receipts: receipts.list, production: production.list,
-      adjustments: adjustments.list, logs: logs.list,
+      adjustments: adjustments.list, rejects: rejects.list,
+      repairs: repairs.list, dispatch: dispatch.list, rejectReasons: rejectReasons.list, logs: logs.list,
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
@@ -259,6 +293,10 @@ function DataTools() {
       await receipts.replaceAll(data.receipts || [])
       await production.replaceAll(data.production || [])
       await adjustments.replaceAll(data.adjustments || [])
+      await rejects.replaceAll(data.rejects || [])
+      await repairs.replaceAll(data.repairs || [])
+      await dispatch.replaceAll(data.dispatch || [])
+      if (data.rejectReasons) await rejectReasons.replaceAll(data.rejectReasons)
       if (logs.replaceAll) await logs.replaceAll(data.logs || [])
       log('RESTORE', `Restored backup from ${file.name}`, 'admin')
       show('Restored ✓ — reopen the app if needed')
@@ -326,6 +364,7 @@ export default function Admin() {
     <div className="max-w-lg mx-auto p-4 space-y-4">
       <ReceiveStock />
       <StockTake />
+      <RejectReasons />
       <DataTools />
       <Logs />
     </div>

@@ -84,13 +84,14 @@ try {
   await switchRole()
   await page.locator('text=Shop Floor').click()
   await page.waitForSelector('text=Tap the product')
-  await page.locator('button:has-text("UTM-1")').first().click()   // photo tile
-  await page.waitForSelector('text=Good assembled')
+  await page.locator('button:has-text("UTM-1")').first().click()   // photo tile (UTM-1, first)
+  await page.waitForSelector('text=Good Qty')
   await page.fill('input[inputmode=numeric]', '10')
-  await page.waitForSelector('text=40 used')
-  await page.click('button:has-text("Save Production")')
+  await page.click('button:has-text("SAVE")')
+  await page.waitForSelector('text=Save this entry?')        // confirmation popup
+  await page.click('button:has-text("Yes, Save")')
   await page.waitForSelector('text=Saved:')
-  assert(await page.locator('text=× 10').first().isVisible(), 'Production saved via photo-tile floor flow')
+  assert(await page.locator('text=× 10').first().isVisible(), 'Production saved via ultra-simple floor flow')
 
   console.log('\n[6] Name-based auto-feed: inject receipt by name only')
   await page.evaluate(() => {

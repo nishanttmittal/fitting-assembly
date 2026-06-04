@@ -68,7 +68,7 @@ function FloorView({ module, onSwitch }) {
           </div>
         </div>
       </header>
-      <page.Component />
+      <page.Component floor />
     </div>
   )
 }

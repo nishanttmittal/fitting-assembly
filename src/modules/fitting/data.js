@@ -5,8 +5,8 @@
  */
 import { createCollection, createSingleton, makeId } from '../../core/db/repository'
 import { makeNormalizer } from '../../core/schema/field'
-import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema, rejectSchema, repairSchema, dispatchSchema } from './schema'
-import { KEYS, DEFAULT_PRODUCTS, DEFAULT_COMPONENTS } from './config'
+import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema, rejectSchema, repairSchema, dispatchSchema, rejectReasonSchema } from './schema'
+import { KEYS, DEFAULT_PRODUCTS, DEFAULT_COMPONENTS, DEFAULT_REJECT_REASONS } from './config'
 
 export const componentsRepo = createCollection(KEYS.components, {
   seed: () => DEFAULT_COMPONENTS.map((c, i) => ({
@@ -53,6 +53,11 @@ export const repairsRepo = createCollection(KEYS.repairs, {
 export const dispatchRepo = createCollection(KEYS.dispatch, {
   seed: () => [],
   normalize: makeNormalizer(dispatchSchema),
+})
+
+export const rejectReasonsRepo = createCollection(KEYS.rejectReasons, {
+  seed: () => DEFAULT_REJECT_REASONS.map((name, i) => ({ id: makeId('rr'), name, order: i })),
+  normalize: makeNormalizer(rejectReasonSchema),
 })
 
 export const logsRepo = createCollection(KEYS.logs, { seed: () => [] })

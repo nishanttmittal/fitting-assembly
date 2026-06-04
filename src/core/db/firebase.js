@@ -12,7 +12,10 @@
  *   apps/fitting/logs/{id}          ← one doc per audit log line
  */
 import { initializeApp, getApp } from 'firebase/app'
-import { initializeFirestore, collection, doc } from 'firebase/firestore'
+import {
+  initializeFirestore, collection, doc,
+  persistentLocalCache, persistentMultipleTabManager,
+} from 'firebase/firestore'
 import {
   getAuth, signInAnonymously, onAuthStateChanged,
   GoogleAuthProvider, signInWithPopup,
@@ -27,9 +30,13 @@ let auth = null
 
 if (isFirebaseConfigured) {
   app = initializeApp(firebaseConfig)
-  // In-memory cache + auto long-polling. Reliable on Safari/iOS and restrictive
-  // networks. Reads load instantly online; writes queue and sync on reconnect.
-  db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true })
+  // Persistent on-device cache (IndexedDB) so the app works OFFLINE: the floor
+  // can keep saving production with no internet; entries queue and auto-sync on
+  // reconnect. Multi-tab safe. Auto long-polling for restrictive networks.
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    experimentalAutoDetectLongPolling: true,
+  })
   auth = getAuth(app)
 }
 
@@ -57,6 +64,8 @@ export const paths = {
   repairDoc: (id) => cdoc('repairs', id),
   dispatch: () => coll('dispatch'),
   dispatchDoc: (id) => cdoc('dispatch', id),
+  rejectReasons: () => coll('reject_reasons'),
+  rejectReasonDoc: (id) => cdoc('reject_reasons', id),
   logs: () => coll('logs'),
   logDoc: (id) => cdoc('logs', id),
 }

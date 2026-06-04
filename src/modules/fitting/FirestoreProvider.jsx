@@ -15,8 +15,8 @@ import { onSnapshot, setDoc, deleteDoc, getDocs, writeBatch } from 'firebase/fir
 import { db, paths, ensureSignedIn } from '../../core/db/firebase'
 import { makeNormalizer } from '../../core/schema/field'
 import { makeId } from '../../core/db/repository'
-import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema, rejectSchema } from './schema'
-import { DEFAULT_PRODUCTS, DEFAULT_COMPONENTS } from './config'
+import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema, rejectSchema, repairSchema, dispatchSchema, rejectReasonSchema } from './schema'
+import { DEFAULT_PRODUCTS, DEFAULT_COMPONENTS, DEFAULT_REJECT_REASONS } from './config'
 import { lastUsedStore } from './data'
 import { FittingCtx } from './FittingContext'
 
@@ -68,6 +68,9 @@ const normReceipt    = makeNormalizer(receiptSchema)
 const normProduction = makeNormalizer(productionSchema)
 const normAdjustment = makeNormalizer(adjustmentSchema)
 const normReject     = makeNormalizer(rejectSchema)
+const normRepair     = makeNormalizer(repairSchema)
+const normDispatch   = makeNormalizer(dispatchSchema)
+const normReason     = makeNormalizer(rejectReasonSchema)
 
 export function FirestoreProvider({ children }) {
   const [ready, setReady] = useState(false)
@@ -80,6 +83,9 @@ export function FirestoreProvider({ children }) {
   const production = useCloudCollection(paths.production, paths.productionDoc, normProduction)
   const adjustments = useCloudCollection(paths.adjustments, paths.adjustmentDoc, normAdjustment)
   const rejects    = useCloudCollection(paths.rejects, paths.rejectDoc, normReject)
+  const repairs    = useCloudCollection(paths.repairs, paths.repairDoc, normRepair)
+  const dispatch   = useCloudCollection(paths.dispatch, paths.dispatchDoc, normDispatch)
+  const rejectReasons = useCloudCollection(paths.rejectReasons, paths.rejectReasonDoc, normReason)
   const logs       = useCloudCollection(paths.logs, paths.logDoc, (r) => r)
 
   // Sign in (anonymous), then the collection listeners above start flowing.
@@ -122,7 +128,14 @@ export function FirestoreProvider({ children }) {
         setDoc(paths.component(id), { id, order: i, createdAt: new Date().toISOString(), ...c })
       })
     }
-  }, [ready, products.list.length, components.list.length])
+    // Seed reject reasons (idempotent).
+    if (rejectReasons.list.length === 0) {
+      DEFAULT_REJECT_REASONS.forEach((name, i) => {
+        const id = `seed_rr${i + 1}`
+        setDoc(paths.rejectReasonDoc(id), { id, name, order: i })
+      })
+    }
+  }, [ready, products.list.length, components.list.length, rejectReasons.list.length])
 
   if (!ready && timedOut) {
     return (
@@ -148,7 +161,7 @@ export function FirestoreProvider({ children }) {
   }
 
   const value = {
-    components, products, receipts, production, adjustments, rejects, logs,
+    components, products, receipts, production, adjustments, rejects, repairs, dispatch, rejectReasons, logs,
     lastUsed: lastUsedStore,
     log,
     cloud: { connected: !error, error },
