@@ -46,15 +46,15 @@ try {
   await page.waitForSelector('text=M8 Bolt')
   assert(await page.locator('text=Bought').first().isVisible(), 'Component tagged Bought (purchased)')
 
-  console.log('\n[3] Set Product 1 recipe = 4 × M8 Bolt')
+  console.log('\n[3] Set first product recipe = 4 × M8 Bolt (toppings picker)')
   await page.click('button:has-text("Products & Recipes")')
   await page.locator('button:has-text("Edit")').first().click()
-  await page.click('text=+ Add component to recipe')
-  await page.selectOption('select >> nth=-1', { label: 'M8 Bolt' })
-  await page.fill('input[type=number] >> nth=-1', '4')
+  await page.waitForSelector('text=Add raw material')
+  await page.locator('button:has-text("M8 Bolt")').click()   // ＋ add from available list
+  await page.fill('input[type=number]', '4')                 // qty per piece (only number input)
   await page.click('button:has-text("Save Recipe")')
   await page.waitForSelector('text=M8 Bolt × 4')
-  assert(true, 'Product 1 recipe saved (4 × M8 Bolt)')
+  assert(true, 'Recipe saved via toppings picker (4 × M8 Bolt)')
 
   console.log('\n[4] Admin → Incoming Material: receive 20 Manufactured')
   await page.click('text=Home')

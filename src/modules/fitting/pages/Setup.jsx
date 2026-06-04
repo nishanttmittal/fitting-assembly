@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from 'react'
 import {
-  Button, Card, FieldLabel, TextInput, NumberInput, Select, useToast, Toast,
+  Button, Card, FieldLabel, TextInput, NumberInput, Select, SearchBar, useToast, Toast,
 } from '../../../core/ui'
 import { todayStr, fmtNum, fmtDec } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
@@ -225,8 +225,10 @@ function ProductsTab() {
   const { msg, show } = useToast()
   const [editId, setEditId] = useState(null)
   const [newName, setNewName] = useState('')
+  const [pSearch, setPSearch] = useState('')
 
   const sorted = [...products.list].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name))
+  const shown = sorted.filter(p => !pSearch.trim() || p.name.toLowerCase().includes(pSearch.trim().toLowerCase()))
 
   const addProduct = () => {
     const nm = newName.trim()
@@ -255,7 +257,11 @@ function ProductsTab() {
         </div>
       </Card>
 
-      {sorted.map(p => (
+      {sorted.length > 6 && (
+        <SearchBar value={pSearch} onChange={setPSearch} placeholder={`Search ${sorted.length} products…`} />
+      )}
+
+      {shown.map(p => (
         <Card key={p.id} className="p-5">
           {editId === p.id ? (
             <RecipeEditor product={p} components={components.list}
@@ -286,20 +292,37 @@ function ProductsTab() {
   )
 }
 
+/**
+ * RecipeEditor — pick a product's raw materials from the master list, like
+ * choosing ice-cream toppings: every available material shows with a ＋ to add
+ * it, then you set how many go into one finished piece. Materials shared across
+ * products are simply the same entries, reused per product.
+ */
 function RecipeEditor({ product, components, onCancel, onSave }) {
   const [name, setName] = useState(product.name)
-  const [rows, setRows] = useState(() => (product.recipe || []).map(r => ({ ...r })))
+  const [recipe, setRecipe] = useState(() => {
+    const m = {}; (product.recipe || []).forEach(r => { if (r.componentId) m[r.componentId] = r.qty }); return m
+  })
+  const [q, setQ] = useState('')
 
-  const compOptions = [{ value: '', label: '— pick component —' }, ...components.map(c => ({ value: c.id, label: c.name }))]
-  const setRow = (i, patch) => setRows(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r))
-  const addRow = () => setRows([...rows, { componentId: '', qty: 1 }])
-  const delRow = (i) => setRows(rows.filter((_, idx) => idx !== i))
+  const inRecipe = (id) => Object.prototype.hasOwnProperty.call(recipe, id)
+  const addItem = (id) => setRecipe(r => ({ ...r, [id]: r[id] || 1 }))
+  const removeItem = (id) => setRecipe(r => { const n = { ...r }; delete n[id]; return n })
+  const setQty = (id, v) => setRecipe(r => ({ ...r, [id]: v }))
+
+  const byName = (a, b) => a.name.localeCompare(b.name)
+  const selected = components.filter(c => inRecipe(c.id)).sort(byName)
+  const term = q.trim().toLowerCase()
+  const available = components
+    .filter(c => !inRecipe(c.id))
+    .filter(c => !term || c.name.toLowerCase().includes(term))
+    .sort(byName)
 
   const save = () => {
-    const recipe = rows
-      .filter(r => r.componentId && Number(r.qty) > 0)
-      .map(r => ({ componentId: r.componentId, qty: Number(r.qty) }))
-    onSave({ name: name.trim() || product.name, recipe })
+    const list = Object.entries(recipe)
+      .filter(([, v]) => Number(v) > 0)
+      .map(([componentId, v]) => ({ componentId, qty: Number(v) }))
+    onSave({ name: name.trim() || product.name, recipe: list })
   }
 
   return (
@@ -308,18 +331,45 @@ function RecipeEditor({ product, components, onCancel, onSave }) {
         <FieldLabel>Product name</FieldLabel>
         <TextInput className="mt-1" value={name} onChange={e => setName(e.target.value)} />
       </div>
-      <FieldLabel>Recipe — components per 1 piece</FieldLabel>
-      {components.length === 0 && <p className="text-sm text-amber-600">Add components first (Components tab).</p>}
-      <div className="space-y-2">
-        {rows.map((r, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <Select className="flex-1" value={r.componentId} onChange={e => setRow(i, { componentId: e.target.value })} options={compOptions} />
-            <NumberInput className="w-24 text-center" value={r.qty} onChange={e => setRow(i, { qty: e.target.value })} />
-            <button onClick={() => delRow(i)} className="w-10 h-10 rounded-xl bg-red-50 text-red-500 font-bold flex-shrink-0">✕</button>
+
+      {components.length === 0 ? (
+        <p className="text-sm text-amber-600">Add your raw materials in the <b>Components</b> tab first, then come back to pick them here.</p>
+      ) : (
+        <>
+          {/* Selected raw materials (this product's recipe) */}
+          <FieldLabel>Raw materials in this product ({selected.length})</FieldLabel>
+          {selected.length === 0 ? (
+            <p className="text-xs text-slate-400">None yet — tap ＋ on a material below to add it.</p>
+          ) : (
+            <div className="space-y-2">
+              {selected.map(c => (
+                <div key={c.id} className="flex items-center gap-2 bg-emerald-50 rounded-xl px-3 py-2">
+                  <span className="flex-1 font-semibold text-slate-700 text-sm">{c.name} <span className="text-xs text-slate-400">({c.unit})</span></span>
+                  <NumberInput className="w-20 text-center !py-2" value={recipe[c.id]} onChange={e => setQty(c.id, e.target.value)} />
+                  <span className="text-xs text-slate-400">/pc</span>
+                  <button onClick={() => removeItem(c.id)} className="w-9 h-9 rounded-xl bg-red-50 text-red-500 font-bold flex-shrink-0">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Available raw materials to add (toppings picker) */}
+          <FieldLabel>Add raw material</FieldLabel>
+          <SearchBar value={q} onChange={setQ} placeholder="Search raw material…" />
+          <div className="space-y-1.5 max-h-72 overflow-auto">
+            {available.length === 0 ? (
+              <p className="text-xs text-slate-400 px-1">{term ? 'No match.' : 'All materials added.'}</p>
+            ) : available.map(c => (
+              <button key={c.id} onClick={() => addItem(c.id)}
+                className="w-full flex items-center gap-2 bg-slate-50 hover:bg-slate-100 rounded-xl px-3 py-2.5 text-left active:scale-[0.99]">
+                <span className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold flex-shrink-0">+</span>
+                <span className="flex-1 font-semibold text-slate-700 text-sm">{c.name} <span className="text-xs text-slate-400">({c.unit})</span></span>
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
-      <Button variant="neutral" className="w-full" onClick={addRow}>+ Add component to recipe</Button>
+        </>
+      )}
+
       <div className="flex gap-2 pt-1">
         <Button variant="ghost" className="flex-1" onClick={onCancel}>Cancel</Button>
         <Button variant="success" className="flex-1" onClick={save}>Save Recipe</Button>

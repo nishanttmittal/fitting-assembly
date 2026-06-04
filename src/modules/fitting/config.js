@@ -22,8 +22,33 @@ export const QUICK_QTYS = [5, 10, 25, 50, 100, 200]
  */
 export const AVG_WEIGHT_TOLERANCE_PCT = 1
 
-/** A fresh install starts with 10 placeholder products to rename in Setup. */
-export const DEFAULT_PRODUCTS = Array.from({ length: 10 }, (_, i) => `Product ${i + 1}`)
+/**
+ * The final products produced by the fitting department (UNICO chair
+ * mechanisms & base parts). More can be added in-app (admin → Products).
+ * Names lead with the catalogue code so they sort and search nicely.
+ */
+export const DEFAULT_PRODUCTS = [
+  'UTM-1 Tilting Mechanism',
+  'UTM-2 Tilting Mechanism with Channel',
+  'UTM-3 Small Tilting Mechanism',
+  'UPM-1 Lever Plate',
+  'UPM-2 Lever Plate with Channel',
+  'UPM-3 Push Back Mechanism',
+  'UPM-4 Push Back Mechanism with Dibbi',
+  'USM-1 Sleek Push Back Mechanism',
+  'USM-2 Sleek Push Back Mechanism with Dibbi',
+  'USSM-1 Smart Synchro Mechanism',
+  'USSM-2 Big Synchro Mechanism',
+  'UTRM-1 Torsion Mechanism',
+  'USP-1 6" Square Plate',
+  'USP-2 4" Round Plate',
+  'USP-3 Megna Shell Fitting',
+  'UCAP-101 4" Foot Rest',
+  'UCAP-102 6" Foot Rest',
+  'UCAP-103A Big Cross Bar',
+  'UCAP-103B Small Cross Bar',
+  'UCAP-106 Foot Ring',
+]
 
 /** No components by default — added by admin in Setup. */
 export const DEFAULT_COMPONENTS = []
