@@ -26,7 +26,7 @@ export function SourceBadge({ source }) {
 }
 
 function ComponentsTab() {
-  const { components, receipts, production, log } = useFitting()
+  const { components, products, receipts, production, log } = useFitting()
   const { msg, show } = useToast()
   const stockMap = useMemo(
     () => computeStock(components.list, receipts.list, production.list),
@@ -43,6 +43,8 @@ function ComponentsTab() {
   const [avgWeight, setAvgWeight] = useState('')
   const [weightUnit, setWeightUnit] = useState('kg')
   const [editId, setEditId] = useState(null)
+  const [bulk, setBulk] = useState(null)     // component being added to all products
+  const [bulkQty, setBulkQty] = useState('1')
 
   const SOURCE_OPTS = [
     { value: 'purchased', label: 'Purchased (outside)' },
@@ -92,6 +94,23 @@ function ComponentsTab() {
     components.remove(c.id)
     log('DELETE_COMPONENT', c.name, 'admin')
     show('Deleted ✓')
+  }
+
+  // Add this raw material to EVERY product's recipe in one tap (skips products
+  // that already contain it, so existing quantities are never overwritten).
+  const addToAllProducts = () => {
+    const qn = Number(bulkQty) || 0
+    if (qn <= 0) return show('Enter a quantity', 2000)
+    let added = 0
+    products.list.forEach(p => {
+      const recipe = Array.isArray(p.recipe) ? p.recipe : []
+      if (recipe.some(r => r.componentId === bulk.id)) return
+      products.update(p.id, { recipe: [...recipe, { componentId: bulk.id, qty: qn }] })
+      added++
+    })
+    log('RECIPE_BULK', `${bulk.name} → ${added} products @ ${qn}/pc`, 'admin')
+    show(`Added to ${added} product(s) ✓`)
+    setBulk(null); setBulkQty('1')
   }
 
   return (
@@ -158,9 +177,10 @@ function ComponentsTab() {
                         {' · low at '}{fmtNum(c.lowAt)}{c.sourceApp ? ` · fed by ${c.sourceApp}` : ''}
                       </div>
                     </div>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => setEditId(c.id)} className="text-blue-600 text-sm font-bold px-2">Edit</button>
-                      <button onClick={() => del(c)} className="text-red-500 text-sm font-bold px-2">Del</button>
+                    <div className="flex gap-1">
+                      <button onClick={() => { setBulk(c); setBulkQty('1') }} className="text-violet-600 text-xs font-bold px-1.5" title="Add to all products">＋All</button>
+                      <button onClick={() => setEditId(c.id)} className="text-blue-600 text-sm font-bold px-1.5">Edit</button>
+                      <button onClick={() => del(c)} className="text-red-500 text-sm font-bold px-1.5">Del</button>
                     </div>
                   </div>
                 )}
@@ -169,6 +189,24 @@ function ComponentsTab() {
           </div>
         )}
       </Card>
+
+      {/* Add-to-all-products sheet */}
+      {bulk && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-40 p-4" onClick={() => setBulk(null)}>
+          <Card className="p-5 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+            <FieldLabel>Add “{bulk.name}” to all products</FieldLabel>
+            <p className="text-xs text-slate-400 -mt-1">Adds it to every product's recipe at the quantity below. Products that already include it are left unchanged.</p>
+            <div>
+              <FieldLabel>Quantity per piece</FieldLabel>
+              <NumberInput className="mt-1" value={bulkQty} onChange={e => setBulkQty(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" className="flex-1" onClick={() => setBulk(null)}>Cancel</Button>
+              <Button variant="success" className="flex-1" onClick={addToAllProducts}>Add to {products.list.length} products</Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

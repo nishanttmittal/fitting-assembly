@@ -56,6 +56,14 @@ try {
   await page.waitForSelector('text=M8 Bolt × 4')
   assert(true, 'Recipe saved via toppings picker (4 × M8 Bolt)')
 
+  console.log('\n[3b] Add M8 Bolt to ALL products (＋All)')
+  await page.click('button:has-text("Components")')              // Components tab
+  await page.locator('button:has-text("All")').first().click()  // ＋All on M8 Bolt
+  await page.click('button:has-text("Add to")')                 // confirm (qty defaults to 1)
+  await page.click('button:has-text("Products & Recipes")')
+  await page.waitForSelector('text=M8 Bolt × 1')                // appears on other products
+  assert(true, 'M8 Bolt bulk-added to all products (first kept × 4, others × 1)')
+
   console.log('\n[4] Admin → Incoming Material: receive 20 Manufactured')
   await page.click('text=Home')
   await page.locator('button:has-text("Receive stock, backup")').click() // the Admin card
