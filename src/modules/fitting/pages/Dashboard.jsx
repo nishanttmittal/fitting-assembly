@@ -9,7 +9,8 @@ import { useMemo, useState } from 'react'
 import { Card, FieldLabel } from '../../../core/ui'
 import { todayStr, fmtDate, fmtNum } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
-import { computeStock, canBuild, shortages } from '../logic/stock'
+import { computeStock, canBuild, shortages, incomingSummary } from '../logic/stock'
+import { SourceBadge } from './Setup'
 
 function Stat({ label, value, tone = 'text-slate-800' }) {
   return (
@@ -50,6 +51,10 @@ export default function Dashboard() {
 
   const totalDay = dayProd.reduce((s, [, q]) => s + q, 0)
 
+  // Material received this month, split by where it came from.
+  const monthFrom = todayStr().slice(0, 8) + '01'
+  const incoming = useMemo(() => incomingSummary(receipts.list, monthFrom, todayStr()), [receipts.list, monthFrom])
+
   return (
     <div className="max-w-lg mx-auto p-4 space-y-4">
       <div className="flex gap-3">
@@ -74,6 +79,21 @@ export default function Dashboard() {
           </div>
         </Card>
       )}
+
+      {/* Material received this month, by source */}
+      <Card className="p-5">
+        <FieldLabel>Material In · This Month</FieldLabel>
+        <div className="mt-3 flex gap-3">
+          <div className="flex-1 bg-sky-50 rounded-xl px-4 py-3 text-center">
+            <div className="text-2xl font-bold text-sky-700">{fmtNum(incoming.purchased)}</div>
+            <div className="text-xs text-sky-600 mt-0.5">🛒 Purchased</div>
+          </div>
+          <div className="flex-1 bg-amber-50 rounded-xl px-4 py-3 text-center">
+            <div className="text-2xl font-bold text-amber-700">{fmtNum(incoming.manufactured)}</div>
+            <div className="text-xs text-amber-600 mt-0.5">🏭 Manufactured</div>
+          </div>
+        </div>
+      </Card>
 
       {/* Production for a chosen date */}
       <Card className="p-5">
@@ -124,7 +144,7 @@ export default function Dashboard() {
             {stockList.map(s => (
               <div key={s.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
                 <div>
-                  <div className="font-semibold text-slate-700">{s.name}</div>
+                  <div className="font-semibold text-slate-700 flex items-center gap-1.5">{s.name} <SourceBadge source={s.source} /></div>
                   <div className="text-xs text-slate-400">in {fmtNum(s.received)} · used {fmtNum(s.used)}</div>
                 </div>
                 <span className={`font-mono font-bold ${s.negative ? 'text-red-600' : s.low ? 'text-amber-600' : 'text-slate-700'}`}>

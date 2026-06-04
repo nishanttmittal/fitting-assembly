@@ -10,30 +10,51 @@
 /** Number coercion that treats blanks/NaN as 0. */
 const num = (v) => Number(v) || 0
 
+/** Normalize a name for matching: lowercase, collapse whitespace. */
+const normName = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
+
 /**
  * Build a stock map keyed by componentId.
- * @returns {Object<string, {id,name,unit,lowAt,received,used,stock,negative,low}>}
+ *
+ * Movements (receipts / production.consumed) are resolved to a master component
+ * by id first, then by NAME — so material auto-fed from another app, which only
+ * knows the component's name (not this app's internal id), still attaches to the
+ * right component. Anything that matches nothing is shown under its own name so
+ * the admin notices and can add it.
+ *
+ * @returns {Object<string, {id,name,unit,lowAt,source,received,used,stock,negative,low}>}
  */
 export function computeStock(components, receipts, production) {
   const map = {}
+  const byId = {}
+  const byName = {}
   for (const c of components) {
-    map[c.id] = { id: c.id, name: c.name, unit: c.unit || 'pcs', lowAt: num(c.lowAt), received: 0, used: 0, stock: 0, negative: false, low: false }
+    const entry = { id: c.id, name: c.name, unit: c.unit || 'pcs', lowAt: num(c.lowAt), source: c.source || 'purchased', received: 0, used: 0, stock: 0, negative: false, low: false }
+    map[c.id] = entry
+    byId[c.id] = entry
+    if (c.name) byName[normName(c.name)] = entry
   }
-  // helper to lazily include a component referenced by a movement but missing
-  // from the master list (e.g. deleted) so its stock still shows.
-  const ensure = (id, name) => {
-    if (!map[id]) map[id] = { id, name: name || 'Unknown', unit: 'pcs', lowAt: 0, received: 0, used: 0, stock: 0, negative: false, low: false }
-    return map[id]
+
+  // Resolve a movement to a stock entry (by id, then name), creating a
+  // placeholder entry if it matches no known component.
+  const resolve = (id, name) => {
+    if (id && byId[id]) return byId[id]
+    const nn = normName(name)
+    if (nn && byName[nn]) return byName[nn]
+    const key = id || (nn ? `name:${nn}` : 'unknown')
+    if (!map[key]) {
+      map[key] = { id: key, name: name || 'Unknown', unit: 'pcs', lowAt: 0, source: 'purchased', received: 0, used: 0, stock: 0, negative: false, low: false }
+      if (nn) byName[nn] = map[key]
+    }
+    return map[key]
   }
 
   for (const r of receipts) {
-    if (!r.componentId) continue
-    ensure(r.componentId, r.componentName).received += num(r.qty)
+    resolve(r.componentId, r.componentName).received += num(r.qty)
   }
   for (const p of production) {
     for (const c of (p.consumed || [])) {
-      if (!c.componentId) continue
-      ensure(c.componentId, c.componentName).used += num(c.qty)
+      resolve(c.componentId, c.componentName).used += num(c.qty)
     }
   }
   for (const id in map) {
@@ -43,6 +64,22 @@ export function computeStock(components, receipts, production) {
     m.low = m.stock >= 0 && m.lowAt > 0 && m.stock <= m.lowAt
   }
   return map
+}
+
+/**
+ * Totals of material received, split by source, within an optional date range.
+ * @returns {{purchased:number, manufactured:number, total:number}}
+ */
+export function incomingSummary(receipts, from, to) {
+  let purchased = 0, manufactured = 0
+  for (const r of receipts) {
+    if (from && r.date < from) continue
+    if (to && r.date > to) continue
+    const q = num(r.qty)
+    if (r.source === 'manufactured') manufactured += q
+    else purchased += q
+  }
+  return { purchased, manufactured, total: purchased + manufactured }
 }
 
 /** The recipe rows of a product (array of {componentId, qty}). */

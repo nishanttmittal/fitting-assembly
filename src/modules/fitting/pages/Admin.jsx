@@ -5,12 +5,11 @@
  */
 import { useMemo, useRef, useState } from 'react'
 import {
-  Button, Card, FieldLabel, PasswordGate, Select, NumberInput, DateInput, TextInput, useToast, Toast,
+  Button, Card, FieldLabel, Select, NumberInput, DateInput, TextInput, useToast, Toast,
 } from '../../../core/ui'
 import { todayStr, fmtDate, fmtNum } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
 import { computeStock } from '../logic/stock'
-import { ADMIN_PASSWORD } from '../config'
 
 function ReceiveStock() {
   const { components, receipts, production, log } = useFitting()
@@ -23,6 +22,7 @@ function ReceiveStock() {
   const [componentId, setComponentId] = useState(sorted[0]?.id || '')
   const [qty, setQty] = useState('')
   const [date, setDate] = useState(todayStr())
+  const [source, setSource] = useState('purchased')
   const [note, setNote] = useState('')
 
   const add = () => {
@@ -30,9 +30,9 @@ function ReceiveStock() {
     if (!c) return show('Pick a component', 2000)
     const n = Number(qty) || 0
     if (n <= 0) return show('Enter a quantity', 2000)
-    receipts.insert({ date, componentId: c.id, componentName: c.name, qty: n, note: note.trim() })
-    log('RECEIVE', `${c.name} +${n} on ${fmtDate(date)}`, 'admin')
-    show(`Received ${c.name} +${fmtNum(n)} ✓`)
+    receipts.insert({ date, componentId: c.id, componentName: c.name, qty: n, source, sourceApp: 'manual', note: note.trim() })
+    log('RECEIVE', `${c.name} +${n} (${source}) on ${fmtDate(date)}`, 'admin')
+    show(`Added ${c.name} +${fmtNum(n)} ✓`)
     setQty(''); setNote('')
   }
 
@@ -40,13 +40,23 @@ function ReceiveStock() {
 
   return (
     <Card className="p-5 space-y-3">
-      <FieldLabel>Receive Component Stock</FieldLabel>
+      <FieldLabel>Incoming Material</FieldLabel>
+      <p className="text-xs text-slate-400 -mt-1">Add stock coming in — bought outside or made in-house. (In-house apps can also feed stock here automatically.)</p>
       {components.list.length === 0 ? (
         <p className="text-sm text-slate-400">Add components first in Components &amp; Recipes.</p>
       ) : (
         <>
           <Select value={componentId} onChange={e => setComponentId(e.target.value)}
             options={sorted.map(c => ({ value: c.id, label: `${c.name} (stock ${fmtNum(stockMap[c.id]?.stock ?? 0)})` }))} />
+          {/* Source toggle */}
+          <div className="flex gap-2 bg-slate-100 rounded-2xl p-1">
+            {[['purchased', '🛒 Purchased'], ['manufactured', '🏭 Manufactured']].map(([v, label]) => (
+              <button key={v} onClick={() => setSource(v)}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors ${source === v ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div><FieldLabel>Quantity</FieldLabel><NumberInput className="mt-1" placeholder="0" value={qty} onChange={e => setQty(e.target.value)} /></div>
             <div><FieldLabel>Date</FieldLabel><DateInput className="mt-1" value={date} onChange={e => setDate(e.target.value)} /></div>
@@ -56,11 +66,17 @@ function ReceiveStock() {
 
           {recent.length > 0 && (
             <div className="pt-2">
-              <div className="text-xs font-bold text-slate-400 uppercase mb-2">Recent receipts</div>
+              <div className="text-xs font-bold text-slate-400 uppercase mb-2">Recent incoming</div>
               <div className="space-y-1.5">
                 {recent.map(r => (
                   <div key={r.id} className="flex items-center justify-between text-sm bg-slate-50 rounded-lg px-3 py-2">
-                    <span className="font-semibold text-slate-700">{r.componentName}</span>
+                    <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                      {r.componentName}
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${r.source === 'manufactured' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+                        {r.source === 'manufactured' ? 'Made' : 'Bought'}
+                      </span>
+                      {r.sourceApp && r.sourceApp !== 'manual' && <span className="text-[10px] text-slate-400">via {r.sourceApp}</span>}
+                    </span>
                     <span className="text-slate-500">+{fmtNum(r.qty)} · {fmtDate(r.date)}</span>
                   </div>
                 ))}
@@ -166,12 +182,10 @@ function Logs() {
 
 export default function Admin() {
   return (
-    <PasswordGate password={ADMIN_PASSWORD} title="Admin Area">
-      <div className="max-w-lg mx-auto p-4 space-y-4">
-        <ReceiveStock />
-        <DataTools />
-        <Logs />
-      </div>
-    </PasswordGate>
+    <div className="max-w-lg mx-auto p-4 space-y-4">
+      <ReceiveStock />
+      <DataTools />
+      <Logs />
+    </div>
   )
 }

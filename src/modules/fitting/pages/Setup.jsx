@@ -8,12 +8,22 @@
  */
 import { useMemo, useState } from 'react'
 import {
-  Button, Card, FieldLabel, PasswordGate, TextInput, NumberInput, Select, useToast, Toast,
+  Button, Card, FieldLabel, TextInput, NumberInput, Select, useToast, Toast,
 } from '../../../core/ui'
 import { todayStr, fmtNum } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
 import { computeStock } from '../logic/stock'
-import { ADMIN_PASSWORD } from '../config'
+
+/** Small coloured tag showing where a component comes from. */
+export function SourceBadge({ source }) {
+  const map = {
+    purchased:    ['Bought', 'bg-sky-100 text-sky-700'],
+    manufactured: ['Made',   'bg-amber-100 text-amber-700'],
+    both:         ['Both',   'bg-violet-100 text-violet-700'],
+  }
+  const [label, cls] = map[source] || map.purchased
+  return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>
+}
 
 function ComponentsTab() {
   const { components, receipts, production, log } = useFitting()
@@ -27,20 +37,28 @@ function ComponentsTab() {
   const [unit, setUnit] = useState('pcs')
   const [opening, setOpening] = useState('')
   const [lowAt, setLowAt] = useState('')
+  const [source, setSource] = useState('purchased')
+  const [sourceApp, setSourceApp] = useState('')
   const [editId, setEditId] = useState(null)
+
+  const SOURCE_OPTS = [
+    { value: 'purchased', label: 'Purchased (outside)' },
+    { value: 'manufactured', label: 'Manufactured (in-house)' },
+    { value: 'both', label: 'Both' },
+  ]
 
   const add = () => {
     const nm = name.trim()
     if (!nm) return show('Enter a component name', 2000)
     if (components.list.some(c => c.name.toLowerCase() === nm.toLowerCase())) return show('Already exists', 2000)
-    const row = components.insert({ name: nm, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0 })
+    const row = components.insert({ name: nm, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim() })
     const open = Number(opening) || 0
     if (open > 0) {
-      receipts.insert({ date: todayStr(), componentId: row.id, componentName: row.name, qty: open, note: 'Opening stock' })
+      receipts.insert({ date: todayStr(), componentId: row.id, componentName: row.name, qty: open, source: source === 'manufactured' ? 'manufactured' : 'purchased', sourceApp: 'manual', note: 'Opening stock' })
     }
     log('ADD_COMPONENT', `${nm}${open ? ` (opening ${open})` : ''}`, 'admin')
     show('Component added ✓')
-    setName(''); setUnit('pcs'); setOpening(''); setLowAt('')
+    setName(''); setUnit('pcs'); setOpening(''); setLowAt(''); setSource('purchased'); setSourceApp('')
   }
 
   const saveEdit = (c, patch) => {
@@ -68,6 +86,16 @@ function ComponentsTab() {
           <div><FieldLabel>Opening stock</FieldLabel><NumberInput className="mt-1" placeholder="0" value={opening} onChange={e => setOpening(e.target.value)} /></div>
           <div><FieldLabel>Low at</FieldLabel><NumberInput className="mt-1" placeholder="0" value={lowAt} onChange={e => setLowAt(e.target.value)} /></div>
         </div>
+        <div>
+          <FieldLabel>Source</FieldLabel>
+          <Select className="mt-1" value={source} onChange={e => setSource(e.target.value)} options={SOURCE_OPTS} />
+        </div>
+        {source !== 'purchased' && (
+          <div>
+            <FieldLabel>Fed by app (optional)</FieldLabel>
+            <TextInput className="mt-1" placeholder="e.g. coil-slitter" value={sourceApp} onChange={e => setSourceApp(e.target.value)} />
+          </div>
+        )}
         <Button variant="primary" className="w-full" onClick={add}>Add Component</Button>
       </Card>
 
@@ -84,8 +112,11 @@ function ComponentsTab() {
                 ) : (
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-semibold text-slate-700">{c.name} <span className="text-xs text-slate-400">({c.unit})</span></div>
-                      <div className="text-xs text-slate-400">stock {fmtNum(stockMap[c.id]?.stock ?? 0)} · low at {fmtNum(c.lowAt)}</div>
+                      <div className="font-semibold text-slate-700 flex items-center gap-1.5">
+                        {c.name} <span className="text-xs text-slate-400">({c.unit})</span>
+                        <SourceBadge source={c.source} />
+                      </div>
+                      <div className="text-xs text-slate-400">stock {fmtNum(stockMap[c.id]?.stock ?? 0)} · low at {fmtNum(c.lowAt)}{c.sourceApp ? ` · fed by ${c.sourceApp}` : ''}</div>
                     </div>
                     <div className="flex gap-1.5">
                       <button onClick={() => setEditId(c.id)} className="text-blue-600 text-sm font-bold px-2">Edit</button>
@@ -106,6 +137,13 @@ function EditComponentRow({ c, onCancel, onSave }) {
   const [name, setName] = useState(c.name)
   const [unit, setUnit] = useState(c.unit)
   const [lowAt, setLowAt] = useState(String(c.lowAt ?? 0))
+  const [source, setSource] = useState(c.source || 'purchased')
+  const [sourceApp, setSourceApp] = useState(c.sourceApp || '')
+  const SOURCE_OPTS = [
+    { value: 'purchased', label: 'Purchased (outside)' },
+    { value: 'manufactured', label: 'Manufactured (in-house)' },
+    { value: 'both', label: 'Both' },
+  ]
   return (
     <div className="space-y-2">
       <TextInput value={name} onChange={e => setName(e.target.value)} />
@@ -113,9 +151,13 @@ function EditComponentRow({ c, onCancel, onSave }) {
         <div><FieldLabel>Unit</FieldLabel><TextInput className="mt-1" value={unit} onChange={e => setUnit(e.target.value)} /></div>
         <div><FieldLabel>Low at</FieldLabel><NumberInput className="mt-1" value={lowAt} onChange={e => setLowAt(e.target.value)} /></div>
       </div>
+      <div><FieldLabel>Source</FieldLabel><Select className="mt-1" value={source} onChange={e => setSource(e.target.value)} options={SOURCE_OPTS} /></div>
+      {source !== 'purchased' && (
+        <div><FieldLabel>Fed by app</FieldLabel><TextInput className="mt-1" placeholder="e.g. coil-slitter" value={sourceApp} onChange={e => setSourceApp(e.target.value)} /></div>
+      )}
       <div className="flex gap-2">
         <Button size="sm" variant="ghost" className="flex-1" onClick={onCancel}>Cancel</Button>
-        <Button size="sm" variant="success" className="flex-1" onClick={() => onSave(c, { name: name.trim() || c.name, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0 })}>Save</Button>
+        <Button size="sm" variant="success" className="flex-1" onClick={() => onSave(c, { name: name.trim() || c.name, unit: unit.trim() || 'pcs', lowAt: Number(lowAt) || 0, source, sourceApp: sourceApp.trim() })}>Save</Button>
       </div>
     </div>
   )
@@ -232,18 +274,16 @@ function RecipeEditor({ product, components, onCancel, onSave }) {
 export default function Setup() {
   const [tab, setTab] = useState('components')
   return (
-    <PasswordGate password={ADMIN_PASSWORD} title="Setup — Admin Only">
-      <div className="max-w-lg mx-auto p-4 space-y-4">
-        <div className="flex gap-2 bg-slate-100 rounded-2xl p-1">
-          {['components', 'products'].map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-bold capitalize transition-colors ${tab === t ? 'bg-white shadow text-violet-700' : 'text-slate-500'}`}>
-              {t === 'components' ? 'Components' : 'Products & Recipes'}
-            </button>
-          ))}
-        </div>
-        {tab === 'components' ? <ComponentsTab /> : <ProductsTab />}
+    <div className="max-w-lg mx-auto p-4 space-y-4">
+      <div className="flex gap-2 bg-slate-100 rounded-2xl p-1">
+        {['components', 'products'].map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold capitalize transition-colors ${tab === t ? 'bg-white shadow text-violet-700' : 'text-slate-500'}`}>
+            {t === 'components' ? 'Components' : 'Products & Recipes'}
+          </button>
+        ))}
       </div>
-    </PasswordGate>
+      {tab === 'components' ? <ComponentsTab /> : <ProductsTab />}
+    </div>
   )
 }

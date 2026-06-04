@@ -5,6 +5,7 @@
 import { FittingProvider, useFitting } from './FittingContext'
 import { computeStock, shortages } from './logic/stock'
 import { todayStr } from '../../core/utils/format'
+import { ADMIN_PASSWORD } from './config'
 import NewProduction from './pages/NewProduction'
 import Dashboard from './pages/Dashboard'
 import History from './pages/History'
@@ -43,8 +44,12 @@ export const fittingModule = {
   icon: '🛠️',
   Provider: FittingProvider,
   HomeStats,
+  // Role split: the floor interface shows only pages flagged `floor: true`; the
+  // admin console (password below) shows everything.
+  adminPassword: ADMIN_PASSWORD,
+  floorPageKey: 'newProduction',
   pages: [
-    { key: 'newProduction', title: 'Enter Production',     desc: 'Log final products assembled today',  icon: '➕', color: 'from-emerald-600 to-emerald-700', Component: NewProduction },
+    { key: 'newProduction', title: 'Enter Production',     desc: 'Log final products assembled today',  icon: '➕', color: 'from-emerald-600 to-emerald-700', floor: true, Component: NewProduction },
     { key: 'dashboard',     title: 'Dashboard',            desc: 'Stock, can-build & shortage alerts',  icon: '📊', color: 'from-blue-600 to-blue-700',       Component: Dashboard },
     { key: 'history',       title: 'History',              desc: 'View, edit or delete past entries',   icon: '🗂️', color: 'from-amber-500 to-amber-600',     Component: History },
     { key: 'setup',         title: 'Components & Recipes', desc: 'Set up parts, products & recipes',     icon: '🧩', color: 'from-violet-600 to-violet-700',   Component: Setup },

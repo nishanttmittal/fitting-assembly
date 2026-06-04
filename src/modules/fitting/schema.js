@@ -18,11 +18,26 @@
 import { field } from '../../core/schema/field'
 import { todayStr } from '../../core/utils/format'
 
-/** A raw component / part. */
+/**
+ * A raw component / part.
+ * `source` records where this component normally comes IN from:
+ *   purchased     — bought from outside (entered manually)
+ *   manufactured  — made in your factory (can be auto-fed by another app)
+ *   both          — sometimes bought, sometimes made
+ * `sourceApp` is an optional label for the future app that feeds it in-house
+ * (e.g. "coil-slitter") — purely informational here.
+ */
 export const componentSchema = [
-  field({ name: 'name',  label: 'Component', type: 'text',   default: '', required: true }),
-  field({ name: 'unit',  label: 'Unit',      type: 'text',   default: 'pcs' }),
-  field({ name: 'lowAt', label: 'Low stock alert at', type: 'number', default: 0 }),
+  field({ name: 'name',      label: 'Component', type: 'text',   default: '', required: true }),
+  field({ name: 'unit',      label: 'Unit',      type: 'text',   default: 'pcs' }),
+  field({ name: 'lowAt',     label: 'Low stock alert at', type: 'number', default: 0 }),
+  field({ name: 'source',    label: 'Source',    type: 'select', default: 'purchased',
+          options: [
+            { value: 'purchased',    label: 'Purchased (outside)' },
+            { value: 'manufactured', label: 'Manufactured (in-house)' },
+            { value: 'both',         label: 'Both' },
+          ] }),
+  field({ name: 'sourceApp', label: 'Fed by app', type: 'text', default: '' }),
 ]
 
 /**
@@ -34,12 +49,25 @@ export const productSchema = [
   field({ name: 'recipe', label: 'Recipe',  type: 'list', default: () => [] }),
 ]
 
-/** A component stock receipt (stock coming in). */
+/**
+ * A component stock receipt (material coming IN).
+ *   source     'purchased' (manual, bought outside) | 'manufactured' (in-house)
+ *   sourceApp  which app/process fed it (e.g. 'manual', 'coil-slitter')
+ *   ref        external reference from the feeding app (challan/voucher no) —
+ *              also used to keep auto-feeds idempotent (no double counting).
+ */
 export const receiptSchema = [
   field({ name: 'date',          label: 'Date',      type: 'date',   default: todayStr, required: true }),
   field({ name: 'componentId',   label: 'Component', type: 'select', default: '', required: true }),
   field({ name: 'componentName', label: 'Component', type: 'text',   default: '' }),
   field({ name: 'qty',           label: 'Quantity',  type: 'number', default: 0, required: true }),
+  field({ name: 'source',        label: 'Source',    type: 'select', default: 'purchased',
+          options: [
+            { value: 'purchased',    label: 'Purchased (outside)' },
+            { value: 'manufactured', label: 'Manufactured (in-house)' },
+          ] }),
+  field({ name: 'sourceApp',     label: 'Fed by',    type: 'text',   default: 'manual' }),
+  field({ name: 'ref',           label: 'Reference', type: 'text',   default: '' }),
   field({ name: 'note',          label: 'Note',      type: 'text',   default: '' }),
 ]
 
