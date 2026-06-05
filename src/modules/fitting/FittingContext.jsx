@@ -43,8 +43,8 @@ export function LocalFittingProvider({ children }) {
   const rejectReasons = useCollection(rejectReasonsRepo)
   const logs        = useCollection(logsRepo)
 
-  const log = useCallback((action, detail, by = 'user') => {
-    logs.insert({ ts: new Date().toISOString(), action, detail, by })
+  const log = useCallback((action, detail, by = 'user', ref = '') => {
+    logs.insert({ ts: new Date().toISOString(), action, detail, by, ref })
   }, [logs])
 
   const value = {
