@@ -31,6 +31,8 @@ export default function NewProduction({ floor = false }) {
   const [remarks, setRemarks] = useState('')
   const [search, setSearch] = useState('')
   const [confirming, setConfirming] = useState(false)
+  const [fixing, setFixing] = useState(null)   // the last entry being corrected
+  const [fixQty, setFixQty] = useState('')
 
   const product = sortedProducts.find(p => p.id === productId)
   const n = Number(qty) || 0
@@ -47,6 +49,26 @@ export default function NewProduction({ floor = false }) {
   const alreadyToday = product
     ? todays.filter(p => p.productId === product.id).reduce((s, p) => s + (Number(p.qty) || 0), 0)
     : 0
+
+  // Worker self-correction: only the MOST RECENT entry, and only when the
+  // screen is on today, can the worker fix/cancel. Older entries lock (admin only).
+  const editableId = date === todayStr() ? todays[0]?.id : null
+
+  const openFix = (p) => { setFixing(p); setFixQty(String(p.qty)) }
+  const saveFix = () => {
+    const newGood = Number(fixQty) || 0
+    const pr = products.list.find(x => x.id === fixing.productId)
+    const consumed = pr ? consumedFor(pr, newGood + (Number(fixing.reject) || 0), components.list) : (fixing.consumed || [])
+    production.update(fixing.id, { qty: newGood, consumed })
+    log('FIX', `${fixing.productName}: ${fixing.qty}→${newGood} (worker, same-day)`, floor ? 'floor' : 'admin')
+    show('Corrected ✓'); setFixing(null)
+  }
+  const cancelEntry = (p) => {
+    if (!confirm(`Cancel this entry (${p.productName} × ${p.qty})? It will be voided to 0.`)) return
+    production.update(p.id, { qty: 0, reject: 0, consumed: [] })
+    log('VOID', `${p.productName} × ${p.qty} → 0 (worker cancel)`, floor ? 'floor' : 'admin')
+    show('Entry cancelled ✓')
+  }
 
   const term = search.trim().toLowerCase()
   const tiles = sortedProducts.filter(p => !term || p.name.toLowerCase().includes(term))
@@ -172,14 +194,41 @@ export default function NewProduction({ floor = false }) {
         ) : (
           <div className="space-y-2">
             {todays.map(p => (
-              <div key={p.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
-                <span className="font-semibold text-slate-700">{p.productName}</span>
-                <span className="font-mono font-bold text-emerald-700">× {fmtNum(p.qty)}{p.reject > 0 && <span className="text-red-500 text-xs"> · {fmtNum(p.reject)} rej</span>}</span>
+              <div key={p.id} className="bg-slate-50 rounded-xl px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className={`font-semibold ${p.qty === 0 ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{p.productName}</span>
+                  <span className={`font-mono font-bold ${p.qty === 0 ? 'text-slate-400' : 'text-emerald-700'}`}>
+                    {p.qty === 0 ? 'cancelled' : <>× {fmtNum(p.qty)}{p.reject > 0 && <span className="text-red-500 text-xs"> · {fmtNum(p.reject)} rej</span>}</>}
+                  </span>
+                </div>
+                {p.id === editableId && p.qty > 0 && (
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => openFix(p)} className="flex-1 text-xs font-bold text-blue-600 bg-blue-50 rounded-lg py-1.5">✎ Fix qty</button>
+                    <button onClick={() => cancelEntry(p)} className="flex-1 text-xs font-bold text-red-600 bg-red-50 rounded-lg py-1.5">✕ Cancel</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </Card>
+
+      {/* Fix-last-entry modal (worker, same-day) */}
+      {fixing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-5" onClick={() => setFixing(null)}>
+          <Card className="p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+            <FieldLabel>Fix last entry · {fixing.productName}</FieldLabel>
+            <div>
+              <FieldLabel>Good Qty</FieldLabel>
+              <div className="mt-1.5"><NumberStepper value={fixQty} onChange={setFixQty} quickAdds={QUICK_QTYS} /></div>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="ghost" className="flex-1" onClick={() => setFixing(null)}>Cancel</Button>
+              <Button variant="success" className="flex-1" onClick={saveFix}>Save</Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
