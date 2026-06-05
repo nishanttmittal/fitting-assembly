@@ -14,7 +14,7 @@ import { QUICK_QTYS, FLOOR_BACKDATE_DAYS } from '../config'
 import { consumedFor } from '../logic/stock'
 import ProductPhoto from '../components/ProductPhoto'
 
-export default function NewProduction({ floor = false }) {
+export default function NewProduction({ floor = false, operator = '' }) {
   const { products, components, production, rejectReasons, log, lastUsed } = useFitting()
   const { msg, show } = useToast()
 
@@ -41,8 +41,10 @@ export default function NewProduction({ floor = false }) {
 
   const reasonOpts = [{ value: '', label: '— select reason —' }, ...rejectReasons.list.map(r => ({ value: r.name, label: r.name }))]
 
+  // On a dedicated worker phone (operator set), the today list shows only that
+  // worker's entries; otherwise all entries for the date.
   const todays = production.list
-    .filter(p => p.date === date)
+    .filter(p => p.date === date && (!operator || p.operator === operator))
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 
   // Duplicate-entry guard: how much was already entered today for this product.
@@ -87,9 +89,9 @@ export default function NewProduction({ floor = false }) {
     const consumed = consumedFor(product, total, components.list) // good + reject use materials
     production.insert({
       date, productId: product.id, productName: product.name,
-      qty: n, reject: rej, rejectReason: rej > 0 ? reason : '', remarks: remarks.trim(), consumed,
+      qty: n, reject: rej, rejectReason: rej > 0 ? reason : '', operator, remarks: remarks.trim(), consumed,
     })
-    log('PRODUCE', `${product.name} × ${n}${rej ? ` (+${rej} reject${reason ? ' · ' + reason : ''})` : ''} on ${fmtDate(date)}`, floor ? 'floor' : 'admin')
+    log('PRODUCE', `${product.name} × ${n}${rej ? ` (+${rej} reject${reason ? ' · ' + reason : ''})` : ''}${operator ? ` by ${operator}` : ''} on ${fmtDate(date)}`, operator || (floor ? 'floor' : 'admin'))
     lastUsed.set({ ...lastUsed.get(), productId: product.id })
     show(`Saved: ${product.name} × ${fmtNum(n)} ✓`)
     setQty(''); setReject(''); setReason(''); setRemarks('')

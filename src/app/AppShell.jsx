@@ -54,21 +54,21 @@ function AdminConsole({ module, onSwitch }) {
 }
 
 /** The shop-floor interface: just the floor page, no password. */
-function FloorView({ module, onSwitch }) {
+function FloorView({ module, onSwitch, operator = '' }) {
   const page = module.pages.find(p => p.key === module.floorPageKey) || module.pages[0]
   return (
     <div className="min-h-screen bg-slate-50">
-      <RoleBar label="Shop Floor" onSwitch={onSwitch} />
+      <RoleBar label={operator ? `Shop Floor · ${operator}` : 'Shop Floor'} onSwitch={onSwitch} />
       <header className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-5 py-4 no-print">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center text-lg">{module.icon}</div>
           <div>
             <div className="font-bold leading-tight">{module.title}</div>
-            <div className="text-white/80 text-xs">{page.title}</div>
+            <div className="text-white/80 text-xs">{page.title}{operator ? ` · ${operator}` : ''}</div>
           </div>
         </div>
       </header>
-      <page.Component floor />
+      <page.Component floor operator={operator} />
     </div>
   )
 }
@@ -84,16 +84,19 @@ export default function AppShell({ moduleId }) {
   // A dedicated shop-floor link (…/?floor or ?floor=1) locks the device to the
   // floor interface — no chooser, no admin, no Switch. The plain link keeps the
   // chooser (Shop Floor + Owner/Admin) for you.
-  const floorOnly = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('floor')
+  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const floorOnly = params && params.has('floor')
+  // Dedicated-phone attribution: ?who=Ramesh tags entries to that worker.
+  const who = (params && params.get('who')) || ''
 
   return (
     <Provider>
       {floorOnly ? (
-        <FloorView module={module} />
+        <FloorView module={module} operator={who} />
       ) : (
         <>
           {!role && <RoleChooser title={module.title} icon={module.icon} onPick={pick} />}
-          {role === 'floor' && <FloorView module={module} onSwitch={reset} />}
+          {role === 'floor' && <FloorView module={module} onSwitch={reset} operator={who} />}
           {role === 'admin' && (
             <PasswordGate password={module.adminPassword} title="Admin Console — Login">
               <AdminConsole module={module} onSwitch={reset} />

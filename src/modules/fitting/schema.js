@@ -136,6 +136,7 @@ export const productionSchema = [
   // so `consumed` is the snapshot for (good + reject).
   field({ name: 'reject',      label: 'Rejected',      type: 'number', default: 0 }),
   field({ name: 'rejectReason', label: 'Reject reason', type: 'text',   default: '' }),
+  field({ name: 'operator',    label: 'Worker',        type: 'text',   default: '' }),
   field({ name: 'remarks',     label: 'Remarks',       type: 'text',   default: '' }),
   field({ name: 'consumed',    label: 'Consumed',      type: 'list',   default: () => [] }),
 ]
