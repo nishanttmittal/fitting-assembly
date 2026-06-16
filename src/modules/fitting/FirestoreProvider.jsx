@@ -12,7 +12,7 @@
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { onSnapshot, setDoc, deleteDoc, getDocs, writeBatch } from 'firebase/firestore'
-import { db, paths, ensureSignedIn } from '../../core/db/firebase'
+import { db, paths, ensureSignedIn, watchAuth } from '../../core/db/firebase'
 import { makeNormalizer } from '../../core/schema/field'
 import { makeId } from '../../core/db/repository'
 import { componentSchema, productSchema, receiptSchema, productionSchema, adjustmentSchema, rejectSchema, repairSchema, dispatchSchema, rejectReasonSchema } from './schema'
@@ -21,14 +21,14 @@ import { lastUsedStore } from './data'
 import { FittingCtx } from './FittingContext'
 
 /** Build a live collection binding over a Firestore collection path. */
-function useCloudCollection(collPath, docPath, normalize) {
+function useCloudCollection(collPath, docPath, normalize, authKey) {
   const [list, setList] = useState([])
   useEffect(() => {
-    const unsub = onSnapshot(collPath(), (snap) => {
-      setList(snap.docs.map(d => normalize({ id: d.id, ...d.data() })))
-    })
+    const unsub = onSnapshot(collPath(),
+      (snap) => setList(snap.docs.map(d => normalize({ id: d.id, ...d.data() }))),
+      () => setList([]))
     return unsub
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const api = {
     list,
@@ -76,24 +76,31 @@ export function FirestoreProvider({ children }) {
   const [ready, setReady] = useState(false)
   const [timedOut, setTimedOut] = useState(false)
   const [error, setError] = useState('')
+  // authKey changes anon -> Google so data listeners re-subscribe after login
+  // (else listeners attached while anonymous stay permission-denied once the
+  // data collections are allowlist-locked, and the app loads blank).
+  const [authKey, setAuthKey] = useState('anon')
+  useEffect(() => watchAuth((u) => setAuthKey(u ? `${u.uid}:${u.email || ''}` : 'none')), [])
 
-  const components = useCloudCollection(paths.components, paths.component, normComponent)
-  const products   = useCloudCollection(paths.products, paths.product, normProduct)
-  const receipts   = useCloudCollection(paths.receipts, paths.receipt, normReceipt)
-  const production = useCloudCollection(paths.production, paths.productionDoc, normProduction)
-  const adjustments = useCloudCollection(paths.adjustments, paths.adjustmentDoc, normAdjustment)
-  const rejects    = useCloudCollection(paths.rejects, paths.rejectDoc, normReject)
-  const repairs    = useCloudCollection(paths.repairs, paths.repairDoc, normRepair)
-  const dispatch   = useCloudCollection(paths.dispatch, paths.dispatchDoc, normDispatch)
-  const rejectReasons = useCloudCollection(paths.rejectReasons, paths.rejectReasonDoc, normReason)
-  const logs       = useCloudCollection(paths.logs, paths.logDoc, (r) => r)
+  const components = useCloudCollection(paths.components, paths.component, normComponent, authKey)
+  const products   = useCloudCollection(paths.products, paths.product, normProduct, authKey)
+  const receipts   = useCloudCollection(paths.receipts, paths.receipt, normReceipt, authKey)
+  const production = useCloudCollection(paths.production, paths.productionDoc, normProduction, authKey)
+  const adjustments = useCloudCollection(paths.adjustments, paths.adjustmentDoc, normAdjustment, authKey)
+  const rejects    = useCloudCollection(paths.rejects, paths.rejectDoc, normReject, authKey)
+  const repairs    = useCloudCollection(paths.repairs, paths.repairDoc, normRepair, authKey)
+  const dispatch   = useCloudCollection(paths.dispatch, paths.dispatchDoc, normDispatch, authKey)
+  const rejectReasons = useCloudCollection(paths.rejectReasons, paths.rejectReasonDoc, normReason, authKey)
+  const logs       = useCloudCollection(paths.logs, paths.logDoc, (r) => r, authKey)
+  const users      = useCloudCollection(paths.users, paths.user, (r) => r, authKey)
 
-  // Sign in (anonymous), then the collection listeners above start flowing.
+  // Baseline anonymous sign-in + readiness probe (runs once). `users` stays
+  // readable by any signed-in device (incl. anonymous) so the app can resolve
+  // the Google role before login; the data collections are allowlist-locked.
   useEffect(() => {
     let done = false
     const timer = setTimeout(() => { if (!done) setTimedOut(true) }, 12000)
-    // One extra listener just to know when the first cloud read lands.
-    const unsub = onSnapshot(paths.products(),
+    const unsub = onSnapshot(paths.users(),
       () => { done = true; clearTimeout(timer); setReady(true) },
       (e) => { done = true; clearTimeout(timer); setError(e.message); setReady(true) })
     ensureSignedIn().catch((e) => { done = true; clearTimeout(timer); setError(e.message); setTimedOut(true) })
@@ -110,7 +117,10 @@ export function FirestoreProvider({ children }) {
   // once). The admin renames them and sets recipes in Setup.
   const seededRef = useRef(false)
   useEffect(() => {
-    if (!ready || seededRef.current) return
+    // only seed once a real (allowlisted) user is signed in — writes are denied
+    // for anonymous devices under the locked rules.
+    const realUser = authKey !== 'anon' && authKey !== 'none'
+    if (!ready || !realUser || seededRef.current) return
     if (products.list.length === 0) {
       seededRef.current = true
       DEFAULT_PRODUCTS.forEach((name, i) => {
@@ -135,7 +145,7 @@ export function FirestoreProvider({ children }) {
         setDoc(paths.rejectReasonDoc(id), { id, name, order: i })
       })
     }
-  }, [ready, products.list.length, components.list.length, rejectReasons.list.length])
+  }, [ready, authKey, products.list.length, components.list.length, rejectReasons.list.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready && timedOut) {
     return (
@@ -161,7 +171,7 @@ export function FirestoreProvider({ children }) {
   }
 
   const value = {
-    components, products, receipts, production, adjustments, rejects, repairs, dispatch, rejectReasons, logs,
+    components, products, receipts, production, adjustments, rejects, repairs, dispatch, rejectReasons, logs, users,
     lastUsed: lastUsedStore,
     log,
     cloud: { connected: !error, error },

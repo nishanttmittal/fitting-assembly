@@ -11,6 +11,11 @@ export const ADMIN_PASSWORD = '6133923_N'
 /** The only Google account allowed to unlock Admin via Google sign-in. */
 export const ADMIN_EMAIL = 'nspenterprises24@gmail.com'
 
+/** Bootstrap owner emails — always allowed (Google login), even before any
+ *  users-doc exists. Additional managers/staff are granted by adding a
+ *  users-doc (apps/fitting/users/<email>) with role owner|manager|staff. */
+export const OWNER_EMAILS = ['nspenterprises24@gmail.com']
+
 /** Quick-add chips on the quantity stepper (fast floor entry). */
 export const QUICK_QTYS = [5, 10, 25, 50, 100, 200]
 

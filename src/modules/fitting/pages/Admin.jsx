@@ -359,9 +359,64 @@ function Logs() {
   )
 }
 
+/* ── Users & Access: grant app access by Google email (Owner / Manager / Staff) ── */
+function UsersAccess() {
+  const { users, log } = useFitting()
+  const { msg, show } = useToast()
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [role, setRole] = useState('staff')
+
+  const add = () => {
+    const e = email.trim().toLowerCase()
+    if (!e.includes('@')) return show('Enter a valid Google email')
+    if (users.list.some(u => (u.email || '').toLowerCase() === e)) return show('Already added')
+    users.insert({ id: e, email: e, name: name.trim(), role, active: true })
+    log('USER_ADD', `${e} → ${role}`, 'admin')
+    setEmail(''); setName(''); setRole('staff'); show('Added')
+  }
+  const toggleActive = (u) => { const on = u.active !== false; users.update(u.id, { active: !on }); log(on ? 'USER_OFF' : 'USER_ON', u.email, 'admin') }
+  const setRoleFor = (u, r) => { users.update(u.id, { role: r }); log('USER_ROLE', `${u.email} → ${r}`, 'admin') }
+  const remove = (u) => { if (confirm(`Remove ${u.email}? They lose access.`)) { users.remove(u.id); log('USER_DEL', u.email, 'admin') } }
+
+  return (
+    <Card className="p-5 space-y-3">
+      <Toast msg={msg} />
+      <FieldLabel>Users &amp; Access</FieldLabel>
+      <p className="text-xs text-slate-400 -mt-1">People sign in with Google. Add their Google email and choose a role. Staff = floor entry only; Manager/Owner = full app.</p>
+      <TextInput placeholder="email@gmail.com" value={email} onChange={e => setEmail(e.target.value)} />
+      <div className="grid grid-cols-2 gap-2">
+        <TextInput placeholder="Name (optional)" value={name} onChange={e => setName(e.target.value)} />
+        <Select value={role} onChange={e => setRole(e.target.value)}
+          options={[{ value: 'staff', label: 'Staff (floor entry)' }, { value: 'manager', label: 'Manager (full)' }, { value: 'owner', label: 'Owner (full)' }]} />
+      </div>
+      <Button variant="success" className="w-full" onClick={add}>Add user</Button>
+      {users.list.length > 0 && (
+        <div className="pt-1 space-y-1.5">
+          {[...users.list].sort((a, b) => (a.email || '').localeCompare(b.email || '')).map(u => (
+            <div key={u.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-3 py-2">
+              <div className="min-w-0">
+                <div className={`text-sm font-semibold truncate ${u.active === false ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{u.name || u.email}</div>
+                <div className="text-[11px] text-slate-400 truncate">{u.email}</div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Select value={u.role || 'staff'} onChange={e => setRoleFor(u, e.target.value)} className="text-xs py-1"
+                  options={[{ value: 'staff', label: 'Staff' }, { value: 'manager', label: 'Manager' }, { value: 'owner', label: 'Owner' }]} />
+                <button onClick={() => toggleActive(u)} className="text-xs font-bold text-slate-500 px-2 py-1 rounded bg-slate-200">{u.active === false ? 'On' : 'Off'}</button>
+                <button onClick={() => remove(u)} className="text-xs font-bold text-red-500 px-2 py-1 rounded bg-red-50">✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 export default function Admin() {
   return (
     <div className="max-w-lg mx-auto p-4 space-y-4">
+      <UsersAccess />
       <ReceiveStock />
       <StockTake />
       <RejectReasons />
