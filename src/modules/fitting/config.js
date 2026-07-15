@@ -4,9 +4,6 @@
 
 export const APP_TITLE = 'Fitting'
 
-/** Admin password guarding setup (recipes/components) & destructive actions.
- *  Permanent fallback so admin access can never be locked out. */
-export const ADMIN_PASSWORD = '6133923_N'
 
 /** The only Google account allowed to unlock Admin via Google sign-in. */
 export const ADMIN_EMAIL = 'nspenterprises24@gmail.com'

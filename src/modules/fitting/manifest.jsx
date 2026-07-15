@@ -5,7 +5,6 @@
 import { FittingProvider, useFitting } from './FittingContext'
 import { computeStock, shortages } from './logic/stock'
 import { todayStr } from '../../core/utils/format'
-import { ADMIN_PASSWORD } from './config'
 import NewProduction from './pages/NewProduction'
 import Dashboard from './pages/Dashboard'
 import History from './pages/History'
@@ -45,8 +44,7 @@ export const fittingModule = {
   Provider: FittingProvider,
   HomeStats,
   // Role split: the floor interface shows only pages flagged `floor: true`; the
-  // admin console (password below) shows everything.
-  adminPassword: ADMIN_PASSWORD,
+  // admin console shows everything (owner-gated via Google sign-in).
   floorPageKey: 'newProduction',
   pages: [
     { key: 'newProduction', title: 'Enter Production',     desc: 'Log final products assembled today',  icon: '➕', color: 'from-emerald-600 to-emerald-700', floor: true, Component: NewProduction },

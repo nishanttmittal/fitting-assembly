@@ -12,7 +12,6 @@ import { Button, Card, FieldLabel, SearchBar, NumberStepper, DateInput, useToast
 import { fmtDate, fmtNum } from '../../../core/utils/format'
 import { useFitting } from '../FittingContext'
 import { consumedFor } from '../logic/stock'
-import { ADMIN_PASSWORD } from '../config'
 
 export default function History() {
   const { products, components, production, logs, log } = useFitting()
@@ -54,9 +53,7 @@ export default function History() {
   }
 
   const hardDelete = (p) => {
-    const pwd = prompt(`HARD DELETE "${p.productName} × ${p.qty}" — this removes it permanently.\nEnter admin password to confirm:`)
-    if (pwd === null) return
-    if (pwd !== ADMIN_PASSWORD) return show('Wrong password — not deleted', 2500)
+    if (!confirm(`HARD DELETE "${p.productName} × ${p.qty}"?\nThis removes it permanently and cannot be undone.`)) return
     log('DELETE', `${p.productName} × ${p.qty} on ${fmtDate(p.date)} (hard delete)`, 'admin', p.id)
     production.remove(p.id)
     show('Deleted ✓')
